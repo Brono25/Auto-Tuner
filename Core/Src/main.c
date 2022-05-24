@@ -31,7 +31,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define ADC_BUFF_LEN 4096
+#define HLF_BUFFER_LEN 2948
+#define FULL_BUFFER_LEN (2 * HLF_BUFFER_LEN)
 #define THRSHLD 35
 
 /* USER CODE END PD */
@@ -45,11 +46,18 @@
 ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
 
+DAC_HandleTypeDef hdac1;
+DMA_HandleTypeDef hdma_dac_ch1;
+
 TIM_HandleTypeDef htim6;
 
 /* USER CODE BEGIN PV */
-uint16_t adc_buff[ADC_BUFF_LEN];
-uint16_t x;
+uint16_t adc_buff[FULL_BUFFER_LEN];
+uint16_t dac_buff[FULL_BUFFER_LEN];
+static volatile uint16_t* in_buff;
+static volatile uint16_t* out_buff;
+double gain = 1;
+
 int counter = 0;
 /* USER CODE END PV */
 
@@ -59,6 +67,7 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM6_Init(void);
+static void MX_DAC1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -68,7 +77,7 @@ static void MX_TIM6_Init(void);
 void printBuff()
 {
 	if(counter == THRSHLD) return;
-	for(int i = 0; i < ADC_BUFF_LEN; i++)
+	for(int i = 0; i < FULL_BUFFER_LEN; i++)
 	{
 		printf("0x%04X ", adc_buff[i]);
 		if ((i % 16) == 0)
@@ -81,20 +90,33 @@ void printBuff()
 }
 
 
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc1)
+void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc1)
 {
-	HAL_ADC_Stop_DMA(hadc1);
-
-
-	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
-
-	printBuff();
-
-
-	HAL_ADC_Start_DMA(hadc1, (uint32_t *)adc_buff, ADC_BUFF_LEN);
+	in_buff = &adc_buff[0];
+	out_buff = &dac_buff[HLF_BUFFER_LEN];
+	gain = 1;
 
 }
 
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc1)
+{
+	in_buff = &adc_buff[HLF_BUFFER_LEN];
+	out_buff = &dac_buff[0];
+	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
+	gain = 0.5;
+}
+
+void process_dsp()
+{
+	int sum = 0;
+	for(int i = 0; i < HLF_BUFFER_LEN; i++)
+	{
+		out_buff[i] = gain * in_buff[i];
+		sum += in_buff[i];
+	}
+	sum = sum / HLF_BUFFER_LEN;
+	printf("%d ", sum);
+}
 
 
 /* USER CODE END 0 */
@@ -130,11 +152,12 @@ int main(void)
   MX_DMA_Init();
   MX_ADC1_Init();
   MX_TIM6_Init();
+  MX_DAC1_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start(&htim6);
   HAL_TIM_OC_Start(&htim6, TIM_CHANNEL_6);
-  HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buff, ADC_BUFF_LEN);
-
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buff, FULL_BUFFER_LEN);
+  HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t *)dac_buff,  FULL_BUFFER_LEN, DAC_ALIGN_12B_R);
 
   /* USER CODE END 2 */
 
@@ -146,6 +169,7 @@ int main(void)
 
     /* USER CODE END WHILE */
 
+	  process_dsp();
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -254,6 +278,47 @@ static void MX_ADC1_Init(void)
 }
 
 /**
+  * @brief DAC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_DAC1_Init(void)
+{
+
+  /* USER CODE BEGIN DAC1_Init 0 */
+
+  /* USER CODE END DAC1_Init 0 */
+
+  DAC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN DAC1_Init 1 */
+
+  /* USER CODE END DAC1_Init 1 */
+  /** DAC Initialization
+  */
+  hdac1.Instance = DAC1;
+  if (HAL_DAC_Init(&hdac1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** DAC channel OUT1 config
+  */
+  sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
+  sConfig.DAC_Trigger = DAC_TRIGGER_T6_TRGO;
+  sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
+  sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_DISABLE;
+  sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
+  if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN DAC1_Init 2 */
+
+  /* USER CODE END DAC1_Init 2 */
+
+}
+
+/**
   * @brief TIM6 Initialization Function
   * @param None
   * @retval None
@@ -304,6 +369,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+  /* DMA1_Channel3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
 
 }
 
