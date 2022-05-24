@@ -35,7 +35,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define HLF_BUFFER_LEN 2948
+#define HLF_BUFFER_LEN 2048
 #define FULL_BUFFER_LEN (2 * HLF_BUFFER_LEN)
 #define THRSHLD 35
 #define NUMBER_TAPS 21
@@ -59,14 +59,14 @@ TIM_HandleTypeDef htim6;
 /* USER CODE BEGIN PV */
 uint16_t adc_buff[FULL_BUFFER_LEN];
 uint16_t dac_buff[FULL_BUFFER_LEN];
+float32_t in_buff_dsp[HLF_BUFFER_LEN];
+float32_t out_buff_dsp[HLF_BUFFER_LEN];
+
 static volatile uint16_t* in_buff;
 static volatile uint16_t* out_buff;
-static float32_t* in_buff_f32;
-static float32_t* out_buff_f32;
 
-double gain = 1;
 
-int counter = 0;
+
 int callback_state = 0;
 
 static float fir_taps[NUMBER_TAPS] =
@@ -112,46 +112,41 @@ static void MX_DAC1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void printBuff()
-{
-	if(counter == THRSHLD) return;
-	for(int i = 0; i < FULL_BUFFER_LEN; i++)
-	{
-		printf("0x%04X ", adc_buff[i]);
-		if ((i % 16) == 0)
-		{
-			printf(" ...\n");
-		}
-	}
 
-	counter++;
-}
 
 void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc1)
 {
-
-	callback_state = 2;
-
+  in_buff = &adc_buff[0];
+  out_buff = &dac_buff[HLF_BUFFER_LEN];
+  callback_state = 1;
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc1)
 {
-	callback_state = 1;
-	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
+  in_buff = &adc_buff[HLF_BUFFER_LEN];
+  out_buff = &dac_buff[0];
+  callback_state = 1;
 
 }
+
+
 
 void process_dsp()
 {
 
 	for(int i = 0; i < HLF_BUFFER_LEN; i++)
 	{
-		in_buff_f32[i] = (float32_t)in_buff[i];
-
+		in_buff_dsp[i] = (float32_t) in_buff[i];
 	}
 
-	arm_fir_f32 (&fir_settings, in_buff_f32, out_buff_f32, BLOCK_SIZE_FLOAT);
+	arm_fir_f32(&fir_settings, in_buff_dsp, out_buff_dsp, BLOCK_SIZE_FLOAT);
 
+
+
+	for(int i = 0; i < HLF_BUFFER_LEN; i++)
+	{
+		out_buff[i] = (uint16_t) out_buff_dsp[i];
+	}
 }
 
 
@@ -204,11 +199,19 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  if (callback_state == 1)
+	  {
+
+		  process_dsp();
+		  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
+		  callback_state = 0;
+
+	  }
 
 
     /* USER CODE END WHILE */
 
-	  process_dsp();
+
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
