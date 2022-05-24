@@ -22,6 +22,9 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+
+#define ARM_MATH_CM4
+#include "arm_math.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -31,10 +34,12 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
 #define HLF_BUFFER_LEN 2948
 #define FULL_BUFFER_LEN (2 * HLF_BUFFER_LEN)
 #define THRSHLD 35
-
+#define NUMBER_TAPS 21
+#define BLOCK_SIZE_FLOAT HLF_BUFFER_LEN
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -56,9 +61,42 @@ uint16_t adc_buff[FULL_BUFFER_LEN];
 uint16_t dac_buff[FULL_BUFFER_LEN];
 static volatile uint16_t* in_buff;
 static volatile uint16_t* out_buff;
+static float32_t* in_buff_f32;
+static float32_t* out_buff_f32;
+
 double gain = 1;
 
 int counter = 0;
+int callback_state = 0;
+
+static float fir_taps[NUMBER_TAPS] =
+{
+		0.0067341521273562,
+		0.0088062909651695,
+		0.0146812699735107,
+		0.0239577010431986,
+		0.0358364674828168,
+		0.0492007077330713,
+		0.0627348408477962,
+		0.0750691154403893,
+		0.0849328314998909,
+		0.0912981079030603,
+		0.0934970299674804,
+		0.0912981079030603,
+		0.0849328314998909,
+		0.0750691154403893,
+		0.0627348408477962,
+		0.0492007077330713,
+		0.0358364674828168,
+		0.0239577010431986,
+		0.0146812699735107,
+		0.0088062909651695,
+		0.0067341521273562
+};
+
+arm_fir_instance_f32 fir_settings;
+float fir_state[BLOCK_SIZE_FLOAT + NUMBER_TAPS - 1];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -89,21 +127,18 @@ void printBuff()
 	counter++;
 }
 
-
 void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc1)
 {
-	in_buff = &adc_buff[0];
-	out_buff = &dac_buff[HLF_BUFFER_LEN];
-	//gain = 1;
+
+	callback_state = 2;
 
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc1)
 {
-	in_buff = &adc_buff[HLF_BUFFER_LEN];
-	out_buff = &dac_buff[0];
+	callback_state = 1;
 	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
-	//gain = 0.5;
+
 }
 
 void process_dsp()
@@ -111,11 +146,11 @@ void process_dsp()
 
 	for(int i = 0; i < HLF_BUFFER_LEN; i++)
 	{
-		out_buff[i] = gain * in_buff[i];
+		in_buff_f32[i] = (float32_t)in_buff[i];
 
 	}
-	out_buff[0] = 0;
 
+	arm_fir_f32 (&fir_settings, in_buff_f32, out_buff_f32, BLOCK_SIZE_FLOAT);
 
 }
 
@@ -129,6 +164,7 @@ void process_dsp()
 int main(void)
 {
   /* USER CODE BEGIN 1 */
+
 
   /* USER CODE END 1 */
 
@@ -159,6 +195,8 @@ int main(void)
   HAL_TIM_OC_Start(&htim6, TIM_CHANNEL_6);
   HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buff, FULL_BUFFER_LEN);
   HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t *)dac_buff,  FULL_BUFFER_LEN, DAC_ALIGN_12B_R);
+
+  arm_fir_init_f32(&fir_settings, NUMBER_TAPS, &fir_taps[0], &fir_state[0], BLOCK_SIZE_FLOAT);
 
   /* USER CODE END 2 */
 
