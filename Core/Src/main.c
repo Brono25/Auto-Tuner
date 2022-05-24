@@ -94,7 +94,7 @@ void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc1)
 {
 	in_buff = &adc_buff[0];
 	out_buff = &dac_buff[HLF_BUFFER_LEN];
-	gain = 1;
+	//gain = 1;
 
 }
 
@@ -103,19 +103,20 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc1)
 	in_buff = &adc_buff[HLF_BUFFER_LEN];
 	out_buff = &dac_buff[0];
 	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
-	gain = 0.5;
+	//gain = 0.5;
 }
 
 void process_dsp()
 {
-	int sum = 0;
+
 	for(int i = 0; i < HLF_BUFFER_LEN; i++)
 	{
 		out_buff[i] = gain * in_buff[i];
-		sum += in_buff[i];
+
 	}
-	sum = sum / HLF_BUFFER_LEN;
-	printf("%d ", sum);
+	out_buff[0] = 0;
+
+
 }
 
 
