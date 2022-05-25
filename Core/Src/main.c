@@ -38,9 +38,19 @@
 #define HLF_BUFFER_LEN 2048 * 2
 #define FULL_BUFFER_LEN (2 * HLF_BUFFER_LEN)
 #define BLOCK_SIZE_FLOAT HLF_BUFFER_LEN
+
 #define THRSHLD 35
-#define NUMBER_TAPS 21
 #define DC_BIAS 2200
+
+// IIR filter defines
+#define NUM_STAGES 1
+#define NUM_IIR_TAPS 5
+
+//FIR filter defines
+#define NUM_FIR_TAPS 21
+
+//FFT Defines
+#define IFFT_OFF 0
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -59,7 +69,8 @@ TIM_HandleTypeDef htim6;
 
 /* USER CODE BEGIN PV */
 uint16_t adc_buff[FULL_BUFFER_LEN];
-float32_t dsp_buff[HLF_BUFFER_LEN];
+float32_t in_dsp_buff[HLF_BUFFER_LEN];
+float32_t out_dsp_buff[HLF_BUFFER_LEN / 2];
 
 
 uint16_t* in_ptr;
@@ -70,7 +81,7 @@ int print_flag = 0;
 
 int callback_state = 0;
 
-static float fir_taps[NUMBER_TAPS] =
+static float fir_taps[NUM_FIR_TAPS] =
 {
 		0.0067341521273562,
 		0.0088062909651695,
@@ -95,8 +106,32 @@ static float fir_taps[NUMBER_TAPS] =
 		0.0067341521273562
 };
 
+static float iir_taps [NUM_IIR_TAPS] = {
+		0.0009452463110029614,
+		0.0018904926220059228,
+		0.0009452463110029614,
+		1.9123188046597102,
+		-0.9160997899037219
+};
+
+
+
+
+
+
+
+// Filter stuff
 arm_fir_instance_f32 fir_settings;
-float fir_state[BLOCK_SIZE_FLOAT + NUMBER_TAPS - 1];
+arm_biquad_casd_df1_inst_f32 iir_settings;
+
+arm_rfft_fast_instance_f32 fft_settings;
+
+
+float fir_state[BLOCK_SIZE_FLOAT + NUM_FIR_TAPS - 1];
+float iir_state[4];
+
+
+
 
 /* USER CODE END PV */
 
@@ -127,7 +162,7 @@ void print_output(float32_t *buff, int length)
 			printf("... \n");
 		}
 	}
-	print_flag = 1;
+	print_flag++;
 }
 
 void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc1)
@@ -146,6 +181,39 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc1)
   HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
 }
 
+float complexABS(float real, float compl) {
+
+	return sqrtf(real*real + compl*compl);
+}
+
+void find_frequency()
+{
+	float max = 0;
+	int freq_bin = 0;
+	for (int i = 0; i < HLF_BUFFER_LEN / 2; i++)
+	{
+		if (out_dsp_buff[i] > max)
+		{
+			max = out_dsp_buff[i];
+			freq_bin = i;
+		}
+	}
+
+	printf("%d \n", freq_bin);
+
+}
+
+void mag_response()
+{
+
+	int freqpoint = 0;
+
+	for (int i = 0; i < BLOCK_SIZE_FLOAT; i += 2) {
+		out_dsp_buff[freqpoint] = complexABS(in_dsp_buff[i], in_dsp_buff[i + 1]);
+		freqpoint++;
+	}
+
+}
 
 
 void process_dsp()
@@ -153,15 +221,21 @@ void process_dsp()
 
 	for(int i = 0; i < HLF_BUFFER_LEN; i++)
 	{
-		dsp_buff[i] = (float32_t) in_ptr[i] - DC_BIAS;
+		in_dsp_buff[i] = (float32_t) in_ptr[i] - DC_BIAS;
 	}
 
-	arm_fir_f32(&fir_settings, dsp_buff, dsp_buff, BLOCK_SIZE_FLOAT);
+	//arm_fir_f32(&fir_settings, dsp_buff, dsp_buff, BLOCK_SIZE_FLOAT);
+	arm_biquad_cascade_df1_f32(&iir_settings, in_dsp_buff, in_dsp_buff, BLOCK_SIZE_FLOAT);
 
+	arm_rfft_fast_f32(&fft_settings, in_dsp_buff, in_dsp_buff, IFFT_OFF);
+	mag_response();
+	find_frequency();
 
+	//print_output(&out_dsp_buff[0], HLF_BUFFER_LEN / 2);
 	for(int i = 0; i < HLF_BUFFER_LEN; i++)
 	{
-		out_ptr[i] = (uint16_t) dsp_buff[i] + DC_BIAS;
+		in_dsp_buff[i] += DC_BIAS;
+		out_ptr[i] = (uint16_t) in_dsp_buff[i];
 	}
 
 }
@@ -208,8 +282,9 @@ int main(void)
   HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buff, FULL_BUFFER_LEN);
   HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t *)adc_buff,  FULL_BUFFER_LEN, DAC_ALIGN_12B_R);
 
-  arm_fir_init_f32(&fir_settings, NUMBER_TAPS, &fir_taps[0], &fir_state[0], BLOCK_SIZE_FLOAT);
-
+  arm_fir_init_f32(&fir_settings, NUM_FIR_TAPS, &fir_taps[0], &fir_state[0], BLOCK_SIZE_FLOAT);
+  arm_biquad_cascade_df1_init_f32(&iir_settings, NUM_STAGES, &iir_taps[0], &iir_state[0]);
+  arm_rfft_fast_init_f32(&fft_settings, BLOCK_SIZE_FLOAT);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -222,7 +297,7 @@ int main(void)
 		  process_dsp();
 
 		  callback_state = 0;
-		  print_output(&dsp_buff[0], HLF_BUFFER_LEN);
+
 
 	  }
 
