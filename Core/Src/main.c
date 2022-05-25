@@ -35,11 +35,12 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define HLF_BUFFER_LEN 2048
+#define HLF_BUFFER_LEN 2048 * 2
 #define FULL_BUFFER_LEN (2 * HLF_BUFFER_LEN)
+#define BLOCK_SIZE_FLOAT HLF_BUFFER_LEN
 #define THRSHLD 35
 #define NUMBER_TAPS 21
-#define BLOCK_SIZE_FLOAT HLF_BUFFER_LEN
+#define DC_BIAS 2200
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -58,13 +59,13 @@ TIM_HandleTypeDef htim6;
 
 /* USER CODE BEGIN PV */
 uint16_t adc_buff[FULL_BUFFER_LEN];
-uint16_t dac_buff[FULL_BUFFER_LEN];
-float32_t in_buff_dsp[HLF_BUFFER_LEN];
-float32_t out_buff_dsp[HLF_BUFFER_LEN];
+float32_t dsp_buff[HLF_BUFFER_LEN];
 
-static volatile uint16_t* in_buff;
-static volatile uint16_t* out_buff;
 
+uint16_t* in_ptr;
+uint16_t* out_ptr;
+
+int print_flag = 0;
 
 
 int callback_state = 0;
@@ -113,20 +114,36 @@ static void MX_DAC1_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+void print_output(float32_t *buff, int length)
+{
+	if (print_flag == 1) return;
+
+	for (int i = 0; i < length; i++)
+	{
+		//printf("0x%04x " , buff[i]);
+		printf("%lf " , buff[i]);
+		if( (i % 16) == 0)
+		{
+			printf("... \n");
+		}
+	}
+	print_flag = 1;
+}
 
 void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc1)
 {
-  in_buff = &adc_buff[0];
-  out_buff = &dac_buff[HLF_BUFFER_LEN];
+  in_ptr = &adc_buff[0];
+  out_ptr = &adc_buff[HLF_BUFFER_LEN];
   callback_state = 1;
+  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc1)
 {
-  in_buff = &adc_buff[HLF_BUFFER_LEN];
-  out_buff = &dac_buff[0];
+  in_ptr = &adc_buff[HLF_BUFFER_LEN];
+  out_ptr = &adc_buff[0];
   callback_state = 1;
-
+  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
 }
 
 
@@ -136,17 +153,17 @@ void process_dsp()
 
 	for(int i = 0; i < HLF_BUFFER_LEN; i++)
 	{
-		in_buff_dsp[i] = (float32_t) in_buff[i];
+		dsp_buff[i] = (float32_t) in_ptr[i] - DC_BIAS;
 	}
 
-	arm_fir_f32(&fir_settings, in_buff_dsp, out_buff_dsp, BLOCK_SIZE_FLOAT);
-
+	arm_fir_f32(&fir_settings, dsp_buff, dsp_buff, BLOCK_SIZE_FLOAT);
 
 
 	for(int i = 0; i < HLF_BUFFER_LEN; i++)
 	{
-		out_buff[i] = (uint16_t) out_buff_dsp[i];
+		out_ptr[i] = (uint16_t) dsp_buff[i] + DC_BIAS;
 	}
+
 }
 
 
@@ -189,7 +206,7 @@ int main(void)
   HAL_TIM_Base_Start(&htim6);
   HAL_TIM_OC_Start(&htim6, TIM_CHANNEL_6);
   HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buff, FULL_BUFFER_LEN);
-  HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t *)dac_buff,  FULL_BUFFER_LEN, DAC_ALIGN_12B_R);
+  HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t *)adc_buff,  FULL_BUFFER_LEN, DAC_ALIGN_12B_R);
 
   arm_fir_init_f32(&fir_settings, NUMBER_TAPS, &fir_taps[0], &fir_state[0], BLOCK_SIZE_FLOAT);
 
@@ -203,14 +220,14 @@ int main(void)
 	  {
 
 		  process_dsp();
-		  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
+
 		  callback_state = 0;
+		  print_output(&dsp_buff[0], HLF_BUFFER_LEN);
 
 	  }
 
 
     /* USER CODE END WHILE */
-
 
     /* USER CODE BEGIN 3 */
   }
@@ -380,7 +397,7 @@ static void MX_TIM6_Init(void)
   htim6.Instance = TIM6;
   htim6.Init.Prescaler = 0;
   htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim6.Init.Period = 10000 - 1;
+  htim6.Init.Period = 2000 - 1;
   htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
   {
