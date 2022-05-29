@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include <string.h>
 
 #define ARM_MATH_CM4
 #include "arm_math.h"
@@ -35,7 +36,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define HLF_BUFFER_LEN 2048 * 2
+#define HLF_BUFFER_LEN 2048
 #define FULL_BUFFER_LEN (2 * HLF_BUFFER_LEN)
 #define BLOCK_SIZE_FLOAT HLF_BUFFER_LEN
 
@@ -69,7 +70,9 @@ TIM_HandleTypeDef htim6;
 
 /* USER CODE BEGIN PV */
 uint16_t adc_buff[FULL_BUFFER_LEN];
-float32_t in_dsp_buff[HLF_BUFFER_LEN];
+uint16_t process_buff[FULL_BUFFER_LEN] = {0};
+float32_t in_dsp_buff[FULL_BUFFER_LEN];
+
 float32_t out_dsp_buff[HLF_BUFFER_LEN / 2];
 
 
@@ -78,33 +81,9 @@ uint16_t* out_ptr;
 
 int print_flag = 0;
 
-
 int callback_state = 0;
 
-static float fir_taps[NUM_FIR_TAPS] =
-{
-		0.0067341521273562,
-		0.0088062909651695,
-		0.0146812699735107,
-		0.0239577010431986,
-		0.0358364674828168,
-		0.0492007077330713,
-		0.0627348408477962,
-		0.0750691154403893,
-		0.0849328314998909,
-		0.0912981079030603,
-		0.0934970299674804,
-		0.0912981079030603,
-		0.0849328314998909,
-		0.0750691154403893,
-		0.0627348408477962,
-		0.0492007077330713,
-		0.0358364674828168,
-		0.0239577010431986,
-		0.0146812699735107,
-		0.0088062909651695,
-		0.0067341521273562
-};
+
 
 static float iir_taps [NUM_IIR_TAPS] = {
 		0.0009452463110029614,
@@ -121,13 +100,7 @@ static float iir_taps [NUM_IIR_TAPS] = {
 
 
 // Filter stuff
-arm_fir_instance_f32 fir_settings;
 arm_biquad_casd_df1_inst_f32 iir_settings;
-
-arm_rfft_fast_instance_f32 fft_settings;
-
-
-float fir_state[BLOCK_SIZE_FLOAT + NUM_FIR_TAPS - 1];
 float iir_state[4];
 
 
@@ -149,19 +122,20 @@ static void MX_DAC1_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-void print_output(float32_t *buff, int length)
+void print_output(uint16_t  *buff, int length)
 {
-	if (print_flag == 1) return;
+	if (print_flag == 100) return;
 
 	for (int i = 0; i < length; i++)
 	{
-		//printf("0x%04x " , buff[i]);
-		printf("%lf " , buff[i]);
+		printf("0x%04x " , buff[i]);
+		//printf("%lf " , buff[i]);
 		if( (i % 16) == 0)
 		{
 			printf("... \n");
 		}
 	}
+	printf("... \n\n\n");
 	print_flag++;
 }
 
@@ -181,39 +155,8 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc1)
   HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
 }
 
-float complexABS(float real, float compl) {
 
-	return sqrtf(real*real + compl*compl);
-}
 
-void find_frequency()
-{
-	float max = 0;
-	int freq_bin = 0;
-	for (int i = 0; i < HLF_BUFFER_LEN / 2; i++)
-	{
-		if (out_dsp_buff[i] > max)
-		{
-			max = out_dsp_buff[i];
-			freq_bin = i;
-		}
-	}
-
-	printf("%d \n", freq_bin);
-
-}
-
-void mag_response()
-{
-
-	int freqpoint = 0;
-
-	for (int i = 0; i < BLOCK_SIZE_FLOAT; i += 2) {
-		out_dsp_buff[freqpoint] = complexABS(in_dsp_buff[i], in_dsp_buff[i + 1]);
-		freqpoint++;
-	}
-
-}
 
 
 void process_dsp()
@@ -221,17 +164,17 @@ void process_dsp()
 
 	for(int i = 0; i < HLF_BUFFER_LEN; i++)
 	{
-		in_dsp_buff[i] = (float32_t) in_ptr[i] - DC_BIAS;
+		in_dsp_buff[i] = (float32_t) process_buff[i] - DC_BIAS;
 	}
 
-	//arm_fir_f32(&fir_settings, dsp_buff, dsp_buff, BLOCK_SIZE_FLOAT);
-	arm_biquad_cascade_df1_f32(&iir_settings, in_dsp_buff, in_dsp_buff, BLOCK_SIZE_FLOAT);
 
-	arm_rfft_fast_f32(&fft_settings, in_dsp_buff, in_dsp_buff, IFFT_OFF);
-	mag_response();
-	find_frequency();
 
-	//print_output(&out_dsp_buff[0], HLF_BUFFER_LEN / 2);
+	//arm_biquad_cascade_df1_f32(&iir_settings, in_dsp_buff, in_dsp_buff, BLOCK_SIZE_FLOAT);
+
+
+
+
+
 	for(int i = 0; i < HLF_BUFFER_LEN; i++)
 	{
 		in_dsp_buff[i] += DC_BIAS;
@@ -280,25 +223,48 @@ int main(void)
   HAL_TIM_Base_Start(&htim6);
   HAL_TIM_OC_Start(&htim6, TIM_CHANNEL_6);
   HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buff, FULL_BUFFER_LEN);
-  HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t *)adc_buff,  FULL_BUFFER_LEN, DAC_ALIGN_12B_R);
 
-  arm_fir_init_f32(&fir_settings, NUM_FIR_TAPS, &fir_taps[0], &fir_state[0], BLOCK_SIZE_FLOAT);
+
+
   arm_biquad_cascade_df1_init_f32(&iir_settings, NUM_STAGES, &iir_taps[0], &iir_state[0]);
-  arm_rfft_fast_init_f32(&fft_settings, BLOCK_SIZE_FLOAT);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
+
+  uint16_t  *src;
+  uint16_t  *dest;
+
   while (1)
   {
 	  if (callback_state == 1)
 	  {
+		  HAL_DAC_Stop_DMA(&hdac1, DAC_CHANNEL_1);
+		  //Write to end of buffer
+		  src = in_ptr;
+		  dest = &process_buff[HLF_BUFFER_LEN];
+		  memmove(dest, src, HLF_BUFFER_LEN * sizeof(uint16_t));
 
-		  process_dsp();
 
+
+		  HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t *)process_buff,  FULL_BUFFER_LEN, DAC_ALIGN_12B_R);
+
+
+		  //process_dsp();
+		  //HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t *)flag,  2, DAC_ALIGN_12B_R);
+
+
+		  //Shift buffer
+		  src = &process_buff[HLF_BUFFER_LEN];
+		  dest = &process_buff[0];
+		  memmove(dest, src, HLF_BUFFER_LEN * sizeof(uint16_t));
+
+
+
+		  //print_output(&process_buff[0], FULL_BUFFER_LEN);
 		  callback_state = 0;
-
-
 	  }
 
 
