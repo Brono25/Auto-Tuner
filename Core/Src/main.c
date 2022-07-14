@@ -46,8 +46,7 @@
 ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
 
-DAC_HandleTypeDef hdac1;
-DMA_HandleTypeDef hdma_dac_ch1;
+OPAMP_HandleTypeDef hopamp1;
 
 TIM_HandleTypeDef htim6;
 
@@ -66,7 +65,7 @@ int print_flag = 0;
 
 int callback_state = 0;
 
-
+uint8_t ubAnalogWatchdogStatus = RESET;
 
 float data[BLOCK_SIZE];
 
@@ -83,9 +82,9 @@ float data[BLOCK_SIZE];
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
-static void MX_ADC1_Init(void);
 static void MX_TIM6_Init(void);
-static void MX_DAC1_Init(void);
+static void MX_OPAMP1_Init(void);
+static void MX_ADC1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -121,7 +120,6 @@ void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc1)
   in_ptr = &adc_buff[0];
   out_ptr = &adc_buff[HLF_BUFFER_LEN];
   callback_state = 1;
-  //HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc1)
@@ -147,19 +145,29 @@ void process_dsp()
 	float pitch_estimate = 0;
 
 	 mpm_mcleod_pitch_method_f32(&in_dsp_buff[0], &pitch_estimate);
-     printf("%f \n", pitch_estimate);
+
+	 if (pitch_estimate > 50 && pitch_estimate < 330)
+	 {
+		 printf("%f \n", pitch_estimate);
+	 }
 
 
 
-	//print_output(&out_dsp_buff[0], HLF_BUFFER_LEN / 2);
-	/*
-	for(int i = 0; i < HLF_BUFFER_LEN; i++)
-	{
-		in_dsp_buff[i] += DC_BIAS;
-		out_ptr[i] = (uint16_t) in_dsp_buff[i];
-	}
-*/
 }
+
+
+void HAL_ADC_LevelOutOfWindowCallback(ADC_HandleTypeDef* hadc1)
+{
+	ubAnalogWatchdogStatus = SET;
+	printf("WD\n");
+	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
+
+}
+
+
+
+
+
 
 
 /* USER CODE END 0 */
@@ -194,32 +202,20 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
-  MX_ADC1_Init();
   MX_TIM6_Init();
-  MX_DAC1_Init();
+  MX_OPAMP1_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start(&htim6);
   HAL_TIM_OC_Start(&htim6, TIM_CHANNEL_6);
+  HAL_OPAMP_SelfCalibrate (&hopamp1);
+  HAL_OPAMP_Start(&hopamp1);
   HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buff, FULL_BUFFER_LEN);
-  HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t *)adc_buff,  FULL_BUFFER_LEN, DAC_ALIGN_12B_R);
+
+  //HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t *)adc_buff,  FULL_BUFFER_LEN, DAC_ALIGN_12B_R);
 
 
 
-
-
-  /*----------------- TEST SIGNAL -----------------*/
-
-
-	float f = 101;
-
-
-	float t = 0;
-	for (int i = 0; i < BLOCK_SIZE; i++)
-	{
-		data[i] = cos(2*M_PI*f*t);
-
-		t += 0.000025;
-	}
 
 
 
@@ -231,7 +227,7 @@ int main(void)
   {
 	  if (callback_state == 1)
 	  {
-		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
+		  //HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
 
 
 
@@ -242,7 +238,7 @@ int main(void)
 
 
 
-		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
+		  //HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
 		  callback_state = 0;
 	  }
 
@@ -312,6 +308,7 @@ static void MX_ADC1_Init(void)
 
   /* USER CODE END ADC1_Init 0 */
 
+  ADC_AnalogWDGConfTypeDef AnalogWDGConfig = {0};
   ADC_ChannelConfTypeDef sConfig = {0};
 
   /* USER CODE BEGIN ADC1_Init 1 */
@@ -338,9 +335,21 @@ static void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
+  /** Configure Analog WatchDog 1
+  */
+  AnalogWDGConfig.WatchdogNumber = ADC_ANALOGWATCHDOG_1;
+  AnalogWDGConfig.WatchdogMode = ADC_ANALOGWATCHDOG_SINGLE_REG;
+  AnalogWDGConfig.Channel = ADC_CHANNEL_8;
+  AnalogWDGConfig.ITMode = ENABLE;
+  AnalogWDGConfig.HighThreshold = 3000;
+  AnalogWDGConfig.LowThreshold = 1000;
+  if (HAL_ADC_AnalogWDGConfig(&hadc1, &AnalogWDGConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /** Configure Regular Channel
   */
-  sConfig.Channel = ADC_CHANNEL_5;
+  sConfig.Channel = ADC_CHANNEL_8;
   sConfig.Rank = ADC_REGULAR_RANK_1;
   sConfig.SamplingTime = ADC_SAMPLETIME_2CYCLES_5;
   sConfig.SingleDiff = ADC_SINGLE_ENDED;
@@ -357,43 +366,35 @@ static void MX_ADC1_Init(void)
 }
 
 /**
-  * @brief DAC1 Initialization Function
+  * @brief OPAMP1 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_DAC1_Init(void)
+static void MX_OPAMP1_Init(void)
 {
 
-  /* USER CODE BEGIN DAC1_Init 0 */
+  /* USER CODE BEGIN OPAMP1_Init 0 */
 
-  /* USER CODE END DAC1_Init 0 */
+  /* USER CODE END OPAMP1_Init 0 */
 
-  DAC_ChannelConfTypeDef sConfig = {0};
+  /* USER CODE BEGIN OPAMP1_Init 1 */
 
-  /* USER CODE BEGIN DAC1_Init 1 */
-
-  /* USER CODE END DAC1_Init 1 */
-  /** DAC Initialization
-  */
-  hdac1.Instance = DAC1;
-  if (HAL_DAC_Init(&hdac1) != HAL_OK)
+  /* USER CODE END OPAMP1_Init 1 */
+  hopamp1.Instance = OPAMP1;
+  hopamp1.Init.PowerSupplyRange = OPAMP_POWERSUPPLY_LOW;
+  hopamp1.Init.Mode = OPAMP_PGA_MODE;
+  hopamp1.Init.NonInvertingInput = OPAMP_NONINVERTINGINPUT_IO0;
+  hopamp1.Init.InvertingInput = OPAMP_INVERTINGINPUT_IO0;
+  hopamp1.Init.PgaGain = OPAMP_PGA_GAIN_16;
+  hopamp1.Init.PowerMode = OPAMP_POWERMODE_NORMALPOWER;
+  hopamp1.Init.UserTrimming = OPAMP_TRIMMING_FACTORY;
+  if (HAL_OPAMP_Init(&hopamp1) != HAL_OK)
   {
     Error_Handler();
   }
-  /** DAC channel OUT1 config
-  */
-  sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
-  sConfig.DAC_Trigger = DAC_TRIGGER_T6_TRGO;
-  sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
-  sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_DISABLE;
-  sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
-  if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN DAC1_Init 2 */
+  /* USER CODE BEGIN OPAMP1_Init 2 */
 
-  /* USER CODE END DAC1_Init 2 */
+  /* USER CODE END OPAMP1_Init 2 */
 
 }
 
@@ -448,9 +449,6 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
-  /* DMA1_Channel3_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
 
 }
 

@@ -25,8 +25,6 @@
 /* USER CODE END Includes */
 extern DMA_HandleTypeDef hdma_adc1;
 
-extern DMA_HandleTypeDef hdma_dac_ch1;
-
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
 
@@ -87,7 +85,6 @@ void HAL_MspInit(void)
 */
 void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
 {
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
   if(hadc->Instance==ADC1)
   {
@@ -113,15 +110,6 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
     /* Peripheral clock enable */
     __HAL_RCC_ADC_CLK_ENABLE();
 
-    __HAL_RCC_GPIOA_CLK_ENABLE();
-    /**ADC1 GPIO Configuration
-    PA0     ------> ADC1_IN5
-    */
-    GPIO_InitStruct.Pin = GPIO_PIN_0;
-    GPIO_InitStruct.Mode = GPIO_MODE_ANALOG_ADC_CONTROL;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
     /* ADC1 DMA Init */
     /* ADC1 Init */
     hdma_adc1.Instance = DMA1_Channel1;
@@ -132,7 +120,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
     hdma_adc1.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD;
     hdma_adc1.Init.MemDataAlignment = DMA_MDATAALIGN_HALFWORD;
     hdma_adc1.Init.Mode = DMA_CIRCULAR;
-    hdma_adc1.Init.Priority = DMA_PRIORITY_HIGH;
+    hdma_adc1.Init.Priority = DMA_PRIORITY_LOW;
     if (HAL_DMA_Init(&hdma_adc1) != HAL_OK)
     {
       Error_Handler();
@@ -163,11 +151,6 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* hadc)
     /* Peripheral clock disable */
     __HAL_RCC_ADC_CLK_DISABLE();
 
-    /**ADC1 GPIO Configuration
-    PA0     ------> ADC1_IN5
-    */
-    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_0);
-
     /* ADC1 DMA DeInit */
     HAL_DMA_DeInit(hadc->DMA_Handle);
   /* USER CODE BEGIN ADC1_MspDeInit 1 */
@@ -178,82 +161,66 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* hadc)
 }
 
 /**
-* @brief DAC MSP Initialization
+* @brief OPAMP MSP Initialization
 * This function configures the hardware resources used in this example
-* @param hdac: DAC handle pointer
+* @param hopamp: OPAMP handle pointer
 * @retval None
 */
-void HAL_DAC_MspInit(DAC_HandleTypeDef* hdac)
+void HAL_OPAMP_MspInit(OPAMP_HandleTypeDef* hopamp)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
-  if(hdac->Instance==DAC1)
+  if(hopamp->Instance==OPAMP1)
   {
-  /* USER CODE BEGIN DAC1_MspInit 0 */
+  /* USER CODE BEGIN OPAMP1_MspInit 0 */
 
-  /* USER CODE END DAC1_MspInit 0 */
+  /* USER CODE END OPAMP1_MspInit 0 */
     /* Peripheral clock enable */
-    __HAL_RCC_DAC1_CLK_ENABLE();
+    __HAL_RCC_OPAMP_CLK_ENABLE();
 
     __HAL_RCC_GPIOA_CLK_ENABLE();
-    /**DAC1 GPIO Configuration
-    PA4     ------> DAC1_OUT1
+    /**OPAMP1 GPIO Configuration
+    PA0     ------> OPAMP1_VINP
+    PA1     ------> OPAMP1_VINM
+    PA3     ------> OPAMP1_VOUT
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_4;
+    GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_3;
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-    /* DAC1 DMA Init */
-    /* DAC_CH1 Init */
-    hdma_dac_ch1.Instance = DMA1_Channel3;
-    hdma_dac_ch1.Init.Request = DMA_REQUEST_6;
-    hdma_dac_ch1.Init.Direction = DMA_MEMORY_TO_PERIPH;
-    hdma_dac_ch1.Init.PeriphInc = DMA_PINC_DISABLE;
-    hdma_dac_ch1.Init.MemInc = DMA_MINC_ENABLE;
-    hdma_dac_ch1.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD;
-    hdma_dac_ch1.Init.MemDataAlignment = DMA_MDATAALIGN_HALFWORD;
-    hdma_dac_ch1.Init.Mode = DMA_CIRCULAR;
-    hdma_dac_ch1.Init.Priority = DMA_PRIORITY_LOW;
-    if (HAL_DMA_Init(&hdma_dac_ch1) != HAL_OK)
-    {
-      Error_Handler();
-    }
+  /* USER CODE BEGIN OPAMP1_MspInit 1 */
 
-    __HAL_LINKDMA(hdac,DMA_Handle1,hdma_dac_ch1);
-
-  /* USER CODE BEGIN DAC1_MspInit 1 */
-
-  /* USER CODE END DAC1_MspInit 1 */
+  /* USER CODE END OPAMP1_MspInit 1 */
   }
 
 }
 
 /**
-* @brief DAC MSP De-Initialization
+* @brief OPAMP MSP De-Initialization
 * This function freeze the hardware resources used in this example
-* @param hdac: DAC handle pointer
+* @param hopamp: OPAMP handle pointer
 * @retval None
 */
-void HAL_DAC_MspDeInit(DAC_HandleTypeDef* hdac)
+void HAL_OPAMP_MspDeInit(OPAMP_HandleTypeDef* hopamp)
 {
-  if(hdac->Instance==DAC1)
+  if(hopamp->Instance==OPAMP1)
   {
-  /* USER CODE BEGIN DAC1_MspDeInit 0 */
+  /* USER CODE BEGIN OPAMP1_MspDeInit 0 */
 
-  /* USER CODE END DAC1_MspDeInit 0 */
+  /* USER CODE END OPAMP1_MspDeInit 0 */
     /* Peripheral clock disable */
-    __HAL_RCC_DAC1_CLK_DISABLE();
+    __HAL_RCC_OPAMP_CLK_DISABLE();
 
-    /**DAC1 GPIO Configuration
-    PA4     ------> DAC1_OUT1
+    /**OPAMP1 GPIO Configuration
+    PA0     ------> OPAMP1_VINP
+    PA1     ------> OPAMP1_VINM
+    PA3     ------> OPAMP1_VOUT
     */
-    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_4);
+    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_3);
 
-    /* DAC1 DMA DeInit */
-    HAL_DMA_DeInit(hdac->DMA_Handle1);
-  /* USER CODE BEGIN DAC1_MspDeInit 1 */
+  /* USER CODE BEGIN OPAMP1_MspDeInit 1 */
 
-  /* USER CODE END DAC1_MspDeInit 1 */
+  /* USER CODE END OPAMP1_MspDeInit 1 */
   }
 
 }
