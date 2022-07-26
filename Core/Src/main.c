@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "oled_print.h"
 
 /* USER CODE END Includes */
 
@@ -46,33 +46,41 @@
 ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
 
+DAC_HandleTypeDef hdac1;
+DMA_HandleTypeDef hdma_dac_ch1;
+
+I2C_HandleTypeDef hi2c1;
+
 OPAMP_HandleTypeDef hopamp1;
 
+TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim6;
 
 /* USER CODE BEGIN PV */
-uint16_t adc_buff[FULL_BUFFER_LEN];
-float32_t in_dsp_buff[HLF_BUFFER_LEN];
+uint16_t adc_buff[2 * BLOCK_SIZE];
+float32_t in_dsp_buff[BLOCK_SIZE];
 
-float32_t out_dsp_buff[HLF_BUFFER_LEN / 2];
+float32_t out_dsp_buff[BLOCK_SIZE];
 
 
 uint16_t* in_ptr;
 uint16_t* out_ptr;
 
 int print_flag = 0;
-
+int pulse_width = 500;
 
 int callback_state = 0;
 
-uint8_t ubAnalogWatchdogStatus = RESET;
 
-float data[BLOCK_SIZE];
-
-
-
-
-
+float iir_state[4];
+arm_biquad_casd_df1_inst_f32 iir_settings;
+static float iir_taps [5] = {
+								0.997987115675119,
+								-1.995974231350238,
+								 0.997987115675119,
+								 1.995970179642828,
+								-0.995978283057647
+							};
 
 
 
@@ -85,82 +93,85 @@ static void MX_DMA_Init(void);
 static void MX_TIM6_Init(void);
 static void MX_OPAMP1_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_I2C1_Init(void);
+static void MX_DAC1_Init(void);
+static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
-
-
-//printf("0x%04x " , buff[i]);
-void print_output(float32_t *buff, int length)
+void print_output(float32_t  *buff, int length)
 {
-	if (print_flag == 1) return;
 
 	for (int i = 0; i < length; i++)
 	{
-		printf("%lf " , buff[i]);
-
-		/*
-		if( (i % 16) == 0)
+		//printf("0x%04x " , buff[i]);
+		printf("%d " , (int) buff[i]);
+		if( ((i + 1) % 16) == 0)
 		{
 			printf("... \n");
 		}
-		*/
-		printf("... \n");
-
 	}
-	print_flag++;
+	printf("...\n");
 }
+
+
 
 void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc1)
 {
   in_ptr = &adc_buff[0];
-  out_ptr = &adc_buff[HLF_BUFFER_LEN];
+  //out_ptr = &adc_buff[BLOCK_SIZE];
   callback_state = 1;
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc1)
 {
-  in_ptr = &adc_buff[HLF_BUFFER_LEN];
-  out_ptr = &adc_buff[0];
+  in_ptr = &adc_buff[BLOCK_SIZE];
+  //out_ptr = &adc_buff[0];
   callback_state = 1;
 
 }
 
 
-
-
-void process_dsp()
+float32_t process_dsp()
 {
 
-	for(int i = 0; i < HLF_BUFFER_LEN; i++)
+	for(int i = 0; i < BLOCK_SIZE; i++)
 	{
 		in_dsp_buff[i] = (float32_t) in_ptr[i] - DC_BIAS;
 	}
 
+	arm_biquad_cascade_df1_f32(&iir_settings, in_dsp_buff, in_dsp_buff, BLOCK_SIZE);
 
+
+	//oled_print_pitch_indicator_screen("E2");
 	float pitch_estimate = 0;
+	for(int i = 0; i < BLOCK_SIZE; i++)
+		{
+			if(in_dsp_buff[i] > 600)
+			{
+				mpm_mcleod_pitch_method_f32(&in_dsp_buff[0], &pitch_estimate);
+				break;
+			}
+		}
 
-	 mpm_mcleod_pitch_method_f32(&in_dsp_buff[0], &pitch_estimate);
 
-	 if (pitch_estimate > 50 && pitch_estimate < 330)
+
+	 if (pitch_estimate > 50 && pitch_estimate < 350)
 	 {
-		 printf("%f \n", pitch_estimate);
+		 return pitch_estimate;
+		//oled_print_f32(&pitch_estimate);
+		 //oled_update_pitch_indicator_tick(pitch_estimate);
+
+	 } else
+	 {
+		oled_clear_screen();
 	 }
 
 
-
-}
-
-
-void HAL_ADC_LevelOutOfWindowCallback(ADC_HandleTypeDef* hadc1)
-{
-	ubAnalogWatchdogStatus = SET;
-	printf("WD\n");
-	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
+	 return 0;
 
 }
 
@@ -205,17 +216,28 @@ int main(void)
   MX_TIM6_Init();
   MX_OPAMP1_Init();
   MX_ADC1_Init();
+  MX_I2C1_Init();
+  MX_DAC1_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start(&htim6);
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
+
   HAL_TIM_OC_Start(&htim6, TIM_CHANNEL_6);
   HAL_OPAMP_SelfCalibrate (&hopamp1);
   HAL_OPAMP_Start(&hopamp1);
-  HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buff, FULL_BUFFER_LEN);
+  HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buff, 2 * BLOCK_SIZE);
+  oled_init();
+  arm_biquad_cascade_df1_init_f32(&iir_settings, 1, &iir_taps[0], &iir_state[0]);
+  HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t *)out_dsp_buff,  BLOCK_SIZE, DAC_ALIGN_12B_R);
 
-  //HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t *)adc_buff,  FULL_BUFFER_LEN, DAC_ALIGN_12B_R);
+  arm_pid_instance_f32 PID;
+  PID.Kp = 1;        /* Proporcional */
+  PID.Ki = 0;        /* Integral */
+  PID.Kd = 0.5;        /* Derivative */
 
-
-
+  arm_pid_init_f32(&PID, 1);
 
 
 
@@ -227,18 +249,53 @@ int main(void)
   {
 	  if (callback_state == 1)
 	  {
-		  //HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
+		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
+
+
+
+		 // pulse_width = 50;
+		 // __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pulse_width);
+		 // HAL_Delay(250);
+
+
+
+		  float32_t pitch_estimation = process_dsp();
+
+		  if (pitch_estimation > 50 && pitch_estimation < 350)
+		  	 {
+			  float32_t error = pitch_estimation - 82.4;
+			  oled_print_f32(&pitch_estimation);
+
+
+			  if(error < -1)
+			  {
+				  pulse_width = 46;
+				  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pulse_width);
+
+				  HAL_Delay(250);
+				  pulse_width = 50;
+				  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pulse_width);
+
+			  } else if (error > 1)
+			  {
+				  pulse_width = 54;
+				  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pulse_width);
+
+				  HAL_Delay(250);
+				  pulse_width = 50;
+				  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pulse_width);
+			  }
 
 
 
 
-		  process_dsp();
+
+
+		  	 }
 
 
 
-
-
-		  //HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
+		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
 		  callback_state = 0;
 	  }
 
@@ -308,7 +365,6 @@ static void MX_ADC1_Init(void)
 
   /* USER CODE END ADC1_Init 0 */
 
-  ADC_AnalogWDGConfTypeDef AnalogWDGConfig = {0};
   ADC_ChannelConfTypeDef sConfig = {0};
 
   /* USER CODE BEGIN ADC1_Init 1 */
@@ -335,18 +391,6 @@ static void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
-  /** Configure Analog WatchDog 1
-  */
-  AnalogWDGConfig.WatchdogNumber = ADC_ANALOGWATCHDOG_1;
-  AnalogWDGConfig.WatchdogMode = ADC_ANALOGWATCHDOG_SINGLE_REG;
-  AnalogWDGConfig.Channel = ADC_CHANNEL_8;
-  AnalogWDGConfig.ITMode = ENABLE;
-  AnalogWDGConfig.HighThreshold = 3000;
-  AnalogWDGConfig.LowThreshold = 1000;
-  if (HAL_ADC_AnalogWDGConfig(&hadc1, &AnalogWDGConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /** Configure Regular Channel
   */
   sConfig.Channel = ADC_CHANNEL_8;
@@ -366,6 +410,93 @@ static void MX_ADC1_Init(void)
 }
 
 /**
+  * @brief DAC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_DAC1_Init(void)
+{
+
+  /* USER CODE BEGIN DAC1_Init 0 */
+
+  /* USER CODE END DAC1_Init 0 */
+
+  DAC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN DAC1_Init 1 */
+
+  /* USER CODE END DAC1_Init 1 */
+  /** DAC Initialization
+  */
+  hdac1.Instance = DAC1;
+  if (HAL_DAC_Init(&hdac1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** DAC channel OUT1 config
+  */
+  sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
+  sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
+  sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
+  sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_DISABLE;
+  sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
+  if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN DAC1_Init 2 */
+
+  /* USER CODE END DAC1_Init 2 */
+
+}
+
+/**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.Timing = 0x00702991;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Analogue filter
+  */
+  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Digital filter
+  */
+  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
+
+}
+
+/**
   * @brief OPAMP1 Initialization Function
   * @param None
   * @retval None
@@ -381,11 +512,9 @@ static void MX_OPAMP1_Init(void)
 
   /* USER CODE END OPAMP1_Init 1 */
   hopamp1.Instance = OPAMP1;
-  hopamp1.Init.PowerSupplyRange = OPAMP_POWERSUPPLY_LOW;
-  hopamp1.Init.Mode = OPAMP_PGA_MODE;
+  hopamp1.Init.PowerSupplyRange = OPAMP_POWERSUPPLY_HIGH;
+  hopamp1.Init.Mode = OPAMP_FOLLOWER_MODE;
   hopamp1.Init.NonInvertingInput = OPAMP_NONINVERTINGINPUT_IO0;
-  hopamp1.Init.InvertingInput = OPAMP_INVERTINGINPUT_IO0;
-  hopamp1.Init.PgaGain = OPAMP_PGA_GAIN_16;
   hopamp1.Init.PowerMode = OPAMP_POWERMODE_NORMALPOWER;
   hopamp1.Init.UserTrimming = OPAMP_TRIMMING_FACTORY;
   if (HAL_OPAMP_Init(&hopamp1) != HAL_OK)
@@ -395,6 +524,75 @@ static void MX_OPAMP1_Init(void)
   /* USER CODE BEGIN OPAMP1_Init 2 */
 
   /* USER CODE END OPAMP1_Init 2 */
+
+}
+
+/**
+  * @brief TIM1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM1_Init(void)
+{
+
+  /* USER CODE BEGIN TIM1_Init 0 */
+
+  /* USER CODE END TIM1_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
+
+  /* USER CODE BEGIN TIM1_Init 1 */
+
+  /* USER CODE END TIM1_Init 1 */
+  htim1.Instance = TIM1;
+  htim1.Init.Prescaler = 2352;
+  htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim1.Init.Period = 100;
+  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim1.Init.RepetitionCounter = 0;
+  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterOutputTrigger2 = TIM_TRGO2_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 50;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
+  sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
+  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
+  sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
+  sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
+  sBreakDeadTimeConfig.DeadTime = 0;
+  sBreakDeadTimeConfig.BreakState = TIM_BREAK_DISABLE;
+  sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_HIGH;
+  sBreakDeadTimeConfig.BreakFilter = 0;
+  sBreakDeadTimeConfig.Break2State = TIM_BREAK2_DISABLE;
+  sBreakDeadTimeConfig.Break2Polarity = TIM_BREAK2POLARITY_HIGH;
+  sBreakDeadTimeConfig.Break2Filter = 0;
+  sBreakDeadTimeConfig.AutomaticOutput = TIM_AUTOMATICOUTPUT_DISABLE;
+  if (HAL_TIMEx_ConfigBreakDeadTime(&htim1, &sBreakDeadTimeConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM1_Init 2 */
+
+  /* USER CODE END TIM1_Init 2 */
+  HAL_TIM_MspPostInit(&htim1);
 
 }
 
@@ -449,6 +647,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+  /* DMA1_Channel3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
 
 }
 
