@@ -10,13 +10,11 @@
 
 
 
-
-#include "math.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
 #include <math.h>
-#include "main.h"
+#include "mpm.h"
 
 
 #define PEAK_THRESHOLD 0.9
