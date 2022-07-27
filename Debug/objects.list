@@ -1,4 +1,3 @@
-"./Core/Src/autotuner.o"
 "./Core/Src/main.o"
 "./Core/Src/mpm.o"
 "./Core/Src/oled_print.o"

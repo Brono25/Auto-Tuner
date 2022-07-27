@@ -22,10 +22,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "arm_math.h"
-#include <stdio.h>
-#include "oled_print.h"
-#include "autotuner.h"
+
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,10 +34,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-// ADC Defines
-#define DC_BIAS 2280
-#define BLOCK_SIZE 1024
-#define FS 40000
+
 
 
 // ARM IIR Filter Settings
@@ -192,7 +187,7 @@ int main(void)
 
 
 
-	float32_t guitar_signal[BLOCK_SIZE];
+
 
 
 
@@ -210,7 +205,7 @@ int main(void)
 
 
 			adc_to_guitar_signal(&guitar_signal[0]);
-			autotuner_autotune(&guitar_signal[0]);
+
 
 
 
