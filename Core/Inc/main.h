@@ -31,23 +31,18 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "arm_math.h"
-#include <stdio.h>
-#include "oled_print.h"
+
 
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
-// ADC Defines
-#define DC_BIAS 2280
-#define BLOCK_SIZE 1024
-#define FS 40000
+
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-float32_t guitar_signal[BLOCK_SIZE];
+
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/

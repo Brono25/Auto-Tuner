@@ -22,7 +22,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "arm_math.h"
+#include <stdio.h>
+#include "oled_print.h"
+#include "state_machine.h"
 
 /* USER CODE END Includes */
 
@@ -39,7 +42,11 @@
 
 // ARM IIR Filter Settings
 #define NUM_IIR_STAGES 1
-
+// ADC Defines
+#define DC_BIAS 2280
+#define BLOCK_SIZE 1024
+#define FS 40000
+#define THRESHOLD 600
 
 /* USER CODE END PD */
 
@@ -69,6 +76,7 @@ int callback_state = 0;
 
 
 // ADC Variables
+float32_t guitar_signal[BLOCK_SIZE];
 uint16_t  adc_buff[2 * BLOCK_SIZE];
 uint16_t *in_ptr;
 
@@ -104,32 +112,50 @@ static void MX_TIM1_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+
+void adc_to_guitar_signal(uint16_t *src, float32_t *guitar_signal)
+{
+	for(int i = 0; i < BLOCK_SIZE; i++)
+	{
+		guitar_signal[i] = (float32_t) src[i] - DC_BIAS;
+	}
+	arm_biquad_cascade_df1_f32(&iir_settings, guitar_signal, guitar_signal, BLOCK_SIZE);
+}
+
+
 void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc1)
 {
 	in_ptr = &adc_buff[0];
-	callback_state = 1;
+	adc_to_guitar_signal(in_ptr, &guitar_signal[0]);
+
+	float32_t *p  = &guitar_signal[0];
+	for(int i = 0; i < BLOCK_SIZE; i++)
+	{
+		if(*p > THRESHOLD)
+		{
+			callback_state = 1;
+			return;
+		}
+		p++;
+	}
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc1)
 {
 	in_ptr = &adc_buff[BLOCK_SIZE];
-	callback_state = 1;
-}
+	adc_to_guitar_signal(in_ptr, &guitar_signal[0]);
 
-
-void adc_to_guitar_signal(float32_t *guitar_signal)
-{
-
+	float32_t *p  = &guitar_signal[0];
 	for(int i = 0; i < BLOCK_SIZE; i++)
 	{
-		guitar_signal[i] = (float32_t) in_ptr[i] - DC_BIAS;
+		if(*p > THRESHOLD)
+		{
+			callback_state = 1;
+			return;
+		}
+		p++;
 	}
-
-	arm_biquad_cascade_df1_f32(&iir_settings, guitar_signal, guitar_signal, BLOCK_SIZE);
 }
-
-
-
 
 
 
@@ -186,31 +212,21 @@ int main(void)
 
 
 
-
-
-
-
-
-
-
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
 	while (1)
 	{
-		if (callback_state == 1)
+
+		float32_t freq = 0;
+		get_frequency(&guitar_signal[0], E2, &freq, &callback_state);
+
+		if(freq == 0)
 		{
-			//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
-
-
-			adc_to_guitar_signal(&guitar_signal[0]);
-
-
-
-
-			//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
-			callback_state = 0;
+			oled_clear_screen();
+		} else {
+			//oled_print_f32(&freq);
 		}
 
 
@@ -220,6 +236,50 @@ int main(void)
 	}
 	/* USER CODE END 3 */
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /**
  * @brief System Clock Configuration
