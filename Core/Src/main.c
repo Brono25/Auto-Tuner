@@ -24,8 +24,10 @@
 /* USER CODE BEGIN Includes */
 #include "arm_math.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include "oled_print.h"
-#include "state_machine.h"
+#include "mpm.h"
+
 
 /* USER CODE END Includes */
 
@@ -48,6 +50,23 @@
 #define FS 40000
 #define THRESHOLD 600
 
+#define NUM_STRINGS 6
+
+#define E2 82.41
+#define A2 110.0
+#define D3 146.83
+#define G3 196.0
+#define B3 246.94
+#define E4 329.63
+
+#define U_FREQ_ERROR 20
+#define L_FREQ_ERROR 20
+
+
+#define TABLE_SIZE   5  //must be odd
+#define TABLE_CENTRE TABLE_SIZE / 2
+#define MAX_CORRECT 10
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -56,6 +75,7 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+
 ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
 
@@ -71,8 +91,22 @@ TIM_HandleTypeDef htim6;
 
 /* USER CODE BEGIN PV */
 
-// Current State Variables
 int callback_state = 0;
+int string_tracking = 0;
+float32_t curr_target_string[NUM_STRINGS];
+int answer_counter = 0;
+
+
+//Current state
+void (*state)();
+
+
+// Pitch
+float32_t pitch_table[TABLE_SIZE] = {0};
+float32_t *table_pos_ptr = &pitch_table[0];
+
+
+
 
 
 // ADC Variables
@@ -107,10 +141,24 @@ static void MX_DAC1_Init(void);
 static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
 
+
+void state_get_pitch_error();
+void state_tune_up();
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+void init_tunings()
+{
+	curr_target_string[0] = E2;
+	curr_target_string[1] = A2;
+	curr_target_string[2] = D3;
+	curr_target_string[3] = G3;
+	curr_target_string[4] = B3;
+	curr_target_string[5] = E4;
+}
 
 
 void adc_to_guitar_signal(uint16_t *src, float32_t *guitar_signal)
@@ -155,6 +203,129 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc1)
 		}
 		p++;
 	}
+}
+
+
+int cmpfunc(const void * a, const void * b) {
+  float32_t fa = *(const float32_t*) a;
+  float32_t fb = *(const float32_t*) b;
+  return (fa > fb) - (fa < fb);
+}
+
+void get_frequency(float32_t *signal, float32_t target_freq, float32_t *out_freq)
+{
+	if (callback_state == 1)
+	{
+		float32_t curr_freq = 0;
+		mpm_mcleod_pitch_method_f32(&signal[0], &curr_freq);
+		callback_state = 0;
+
+		if(target_freq - L_FREQ_ERROR < curr_freq && curr_freq < target_freq + U_FREQ_ERROR)
+		{
+			*out_freq = curr_freq;
+			//oled_print_f32(&curr_freq);
+		} else
+		{
+			*out_freq = 0;
+			//oled_clear_screen();
+		}
+	}
+}
+
+float32_t get_error_in_cents(float32_t curr_frequency, float32_t target_frequency)
+{
+	float32_t error = 1200 * log2(curr_frequency / target_frequency);
+	return round(error);
+}
+
+
+void state_tune_up()
+{
+	int pulse_width = 46;
+	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pulse_width);
+	HAL_Delay(100);
+	pulse_width = 50;
+	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pulse_width);
+	state = state_get_pitch_error;
+	//HAL_Delay(250);
+}
+
+void state_tune_down()
+{
+	int pulse_width = 54;
+	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pulse_width);
+	HAL_Delay(150);
+	pulse_width = 50;
+	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pulse_width);
+	state = state_get_pitch_error;
+	//HAL_Delay(250);
+}
+
+
+void state_get_pitch_error()
+{
+	float32_t freq = 0;
+	float32_t target_freq = curr_target_string[string_tracking];
+
+
+
+	get_frequency(&guitar_signal[0], target_freq, &freq);
+
+	float32_t error = get_error_in_cents(freq, target_freq);
+
+	if (-400 < error && error < 400 )
+	{
+		*table_pos_ptr = error;
+
+		if(table_pos_ptr == &pitch_table[TABLE_SIZE - 1])
+		{
+			table_pos_ptr = &pitch_table[0];
+		}else
+		{
+			table_pos_ptr++;
+		}
+
+		qsort(pitch_table, TABLE_SIZE, sizeof(float32_t), cmpfunc);
+		float32_t median_error = pitch_table[TABLE_CENTRE];
+
+
+		if (median_error < -10)
+		{
+			answer_counter = 0;
+			state = state_tune_up;
+		} else if (median_error > 10)
+		{
+			answer_counter = 0;
+			state = state_tune_down;
+		}else
+		{
+			answer_counter++;
+		}
+
+		if (answer_counter > MAX_CORRECT)
+		{
+
+			 HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
+			 HAL_Delay(2000);
+			 HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
+			 string_tracking++;
+			 if(string_tracking == NUM_STRINGS)
+			 {
+				 string_tracking = 0;
+			 }
+			 answer_counter = 0;
+
+		}
+
+
+
+		oled_print_f32(&median_error);
+
+	}else
+	{
+		oled_clear_screen();
+	}
+
 }
 
 
@@ -209,8 +380,15 @@ int main(void)
 	arm_biquad_cascade_df1_init_f32(&iir_settings, NUM_IIR_STAGES, &iir_taps[0], &iir_state[0]);
 
 	oled_init();
+	init_tunings();
+
+	for(int i = 0; i < TABLE_SIZE; i++)
+	{
+		pitch_table[i] = 11;
+	}
 
 
+	state = state_get_pitch_error;
 
 	/* USER CODE END 2 */
 
@@ -219,15 +397,11 @@ int main(void)
 	while (1)
 	{
 
-		float32_t freq = 0;
-		get_frequency(&guitar_signal[0], E2, &freq, &callback_state);
 
-		if(freq == 0)
-		{
-			oled_clear_screen();
-		} else {
-			//oled_print_f32(&freq);
-		}
+		state();
+
+
+
 
 
 		/* USER CODE END WHILE */
