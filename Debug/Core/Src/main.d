@@ -35,7 +35,11 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_tim.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_tim_ex.h \
  ../Core/Inc/arm_math.h ../Drivers/CMSIS/Include/cmsis_compiler.h \
- ../Core/Inc/oled_print.h ../Core/Inc/mpm.h ../Core/Inc/arm_math.h
+ ../Core/Inc/oled_print.h ../Core/Inc/mpm.h ../Core/Inc/arm_math.h \
+ ../Core/Inc/TJ_MPU6050.h \
+ /Users/brono/GitHub/Guitar_TunerMCU/Guitar_Tuner/Drivers/OLED/ssd1306.h \
+ /Users/brono/GitHub/Guitar_TunerMCU/Guitar_Tuner/Drivers/OLED/ssd1306_conf.h \
+ /Users/brono/GitHub/Guitar_TunerMCU/Guitar_Tuner/Drivers/OLED/ssd1306_fonts.h
 
 ../Core/Inc/main.h:
 
@@ -118,3 +122,11 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Core/Inc/mpm.h:
 
 ../Core/Inc/arm_math.h:
+
+../Core/Inc/TJ_MPU6050.h:
+
+/Users/brono/GitHub/Guitar_TunerMCU/Guitar_Tuner/Drivers/OLED/ssd1306.h:
+
+/Users/brono/GitHub/Guitar_TunerMCU/Guitar_Tuner/Drivers/OLED/ssd1306_conf.h:
+
+/Users/brono/GitHub/Guitar_TunerMCU/Guitar_Tuner/Drivers/OLED/ssd1306_fonts.h:

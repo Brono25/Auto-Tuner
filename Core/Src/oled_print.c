@@ -35,7 +35,7 @@ https://github.com/afiskon/stm32-ssd1306.git
 
 void oled_init(void)
 {
-	ssd1306_Init();
+	ssd1306_Init1();
 	ssd1306_Fill(White);
 	ssd1306_DrawCircle(SCREEN_CENTRE_X, SCREEN_CENTRE_Y, RADIUS, Black);
 

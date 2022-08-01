@@ -171,6 +171,10 @@ void ssd1306_Init(void) {
     SSD1306.Initialized = 1;
 }
 
+
+
+
+
 // Fill the whole screen with the given color
 void ssd1306_Fill(SSD1306_COLOR color) {
     /* Set memory */
@@ -483,4 +487,213 @@ void ssd1306_SetDisplayOn(const uint8_t on) {
 
 uint8_t ssd1306_GetDisplayOn() {
     return SSD1306.DisplayOn;
+}
+
+
+
+
+
+
+
+
+
+// Initialize the oled screen
+void ssd1306_Init1(void) {
+    // Reset OLED
+    ssd1306_Reset();
+
+    // Wait for the screen to boot
+    HAL_Delay(100);
+
+    // Init OLED
+    ssd1306_SetDisplayOn(0); //display off
+
+    ssd1306_WriteCommand(0x20); //Set Memory Addressing Mode
+    ssd1306_WriteCommand(0x00); // 00b,Horizontal Addressing Mode; 01b,Vertical Addressing Mode;
+                                // 10b,Page Addressing Mode (RESET); 11b,Invalid
+
+    ssd1306_WriteCommand(0xB0); //Set Page Start Address for Page Addressing Mode,0-7
+
+#ifdef SSD1306_MIRROR_VERT
+    ssd1306_WriteCommand(0xC0); // Mirror vertically
+#else
+    ssd1306_WriteCommand(0xC8); //Set COM Output Scan Direction
+#endif
+
+    ssd1306_WriteCommand(0x00); //---set low column address
+    ssd1306_WriteCommand(0x10); //---set high column address
+
+    ssd1306_WriteCommand(0x40); //--set start line address - CHECK
+
+    ssd1306_SetContrast(0xFF);
+
+#ifdef SSD1306_MIRROR_HORIZ
+    ssd1306_WriteCommand(0xA0); // Mirror horizontally
+#else
+    ssd1306_WriteCommand(0xA1); //--set segment re-map 0 to 127 - CHECK
+#endif
+
+#ifdef SSD1306_INVERSE_COLOR
+    ssd1306_WriteCommand(0xA7); //--set inverse color
+#else
+    ssd1306_WriteCommand(0xA6); //--set normal color
+#endif
+
+// Set multiplex ratio.
+#if (SSD1306_HEIGHT == 128)
+    // Found in the Luma Python lib for SH1106.
+    ssd1306_WriteCommand(0xFF);
+#else
+    ssd1306_WriteCommand(0xA8); //--set multiplex ratio(1 to 64) - CHECK
+#endif
+
+#if (SSD1306_HEIGHT == 32)
+    ssd1306_WriteCommand(0x1F); //
+#elif (SSD1306_HEIGHT == 64)
+    ssd1306_WriteCommand(0x3F); //
+#elif (SSD1306_HEIGHT == 128)
+    ssd1306_WriteCommand(0x3F); // Seems to work for 128px high displays too.
+#else
+#error "Only 32, 64, or 128 lines of height are supported!"
+#endif
+
+    ssd1306_WriteCommand(0xA4); //0xa4,Output follows RAM content;0xa5,Output ignores RAM content
+
+    ssd1306_WriteCommand(0xD3); //-set display offset - CHECK
+    ssd1306_WriteCommand(0x00); //-not offset
+
+    ssd1306_WriteCommand(0xD5); //--set display clock divide ratio/oscillator frequency
+    ssd1306_WriteCommand(0xF0); //--set divide ratio
+
+    ssd1306_WriteCommand(0xD9); //--set pre-charge period
+    ssd1306_WriteCommand(0x22); //
+
+    ssd1306_WriteCommand(0xDA); //--set com pins hardware configuration - CHECK
+#if (SSD1306_HEIGHT == 32)
+    ssd1306_WriteCommand(0x02);
+#elif (SSD1306_HEIGHT == 64)
+    ssd1306_WriteCommand(0x12);
+#elif (SSD1306_HEIGHT == 128)
+    ssd1306_WriteCommand(0x12);
+#else
+#error "Only 32, 64, or 128 lines of height are supported!"
+#endif
+
+    ssd1306_WriteCommand(0xDB); //--set vcomh
+    ssd1306_WriteCommand(0x20); //0x20,0.77xVcc
+
+    ssd1306_WriteCommand(0x8D); //--set DC-DC enable
+    ssd1306_WriteCommand(0x14); //
+    ssd1306_SetDisplayOn(1); //--turn on SSD1306 panel
+
+
+    // Flush buffer to screen
+    ssd1306_UpdateScreen();
+
+    // Set default values for screen object
+    SSD1306.CurrentX = 0;
+    SSD1306.CurrentY = 0;
+
+    SSD1306.Initialized = 1;
+}
+
+
+// Initialize the oled screen
+void ssd1306_Init2(void) {
+    // Reset OLED
+    ssd1306_Reset();
+
+    // Wait for the screen to boot
+    HAL_Delay(100);
+
+    // Init OLED
+    ssd1306_SetDisplayOn(0); //display off
+
+    ssd1306_WriteCommand(0x20); //Set Memory Addressing Mode
+    ssd1306_WriteCommand(0x00); // 00b,Horizontal Addressing Mode; 01b,Vertical Addressing Mode;
+                                // 10b,Page Addressing Mode (RESET); 11b,Invalid
+
+    ssd1306_WriteCommand(0xB0); //Set Page Start Address for Page Addressing Mode,0-7
+
+#ifdef SSD1306_MIRROR_VERT
+    ssd1306_WriteCommand(0xC8); // Mirror vertically
+#else
+    ssd1306_WriteCommand(0xC0); //Set COM Output Scan Direction
+#endif
+
+    ssd1306_WriteCommand(0x00); //---set low column address
+    ssd1306_WriteCommand(0x10); //---set high column address
+
+    ssd1306_WriteCommand(0x40); //--set start line address - CHECK
+
+    ssd1306_SetContrast(0xFF);
+
+#ifdef SSD1306_MIRROR_HORIZ
+    ssd1306_WriteCommand(0xA1); // Mirror horizontally
+#else
+    ssd1306_WriteCommand(0xA0); //--set segment re-map 0 to 127 - CHECK
+#endif
+
+#ifdef SSD1306_INVERSE_COLOR
+    ssd1306_WriteCommand(0xA7); //--set inverse color
+#else
+    ssd1306_WriteCommand(0xA6); //--set normal color
+#endif
+
+// Set multiplex ratio.
+#if (SSD1306_HEIGHT == 128)
+    // Found in the Luma Python lib for SH1106.
+    ssd1306_WriteCommand(0xFF);
+#else
+    ssd1306_WriteCommand(0xA8); //--set multiplex ratio(1 to 64) - CHECK
+#endif
+
+#if (SSD1306_HEIGHT == 32)
+    ssd1306_WriteCommand(0x1F); //
+#elif (SSD1306_HEIGHT == 64)
+    ssd1306_WriteCommand(0x3F); //
+#elif (SSD1306_HEIGHT == 128)
+    ssd1306_WriteCommand(0x3F); // Seems to work for 128px high displays too.
+#else
+#error "Only 32, 64, or 128 lines of height are supported!"
+#endif
+
+    ssd1306_WriteCommand(0xA4); //0xa4,Output follows RAM content;0xa5,Output ignores RAM content
+
+    ssd1306_WriteCommand(0xD3); //-set display offset - CHECK
+    ssd1306_WriteCommand(0x00); //-not offset
+
+    ssd1306_WriteCommand(0xD5); //--set display clock divide ratio/oscillator frequency
+    ssd1306_WriteCommand(0xF0); //--set divide ratio
+
+    ssd1306_WriteCommand(0xD9); //--set pre-charge period
+    ssd1306_WriteCommand(0x22); //
+
+    ssd1306_WriteCommand(0xDA); //--set com pins hardware configuration - CHECK
+#if (SSD1306_HEIGHT == 32)
+    ssd1306_WriteCommand(0x02);
+#elif (SSD1306_HEIGHT == 64)
+    ssd1306_WriteCommand(0x12);
+#elif (SSD1306_HEIGHT == 128)
+    ssd1306_WriteCommand(0x12);
+#else
+#error "Only 32, 64, or 128 lines of height are supported!"
+#endif
+
+    ssd1306_WriteCommand(0xDB); //--set vcomh
+    ssd1306_WriteCommand(0x20); //0x20,0.77xVcc
+
+    ssd1306_WriteCommand(0x8D); //--set DC-DC enable
+    ssd1306_WriteCommand(0x14); //
+    ssd1306_SetDisplayOn(1); //--turn on SSD1306 panel
+
+
+    // Flush buffer to screen
+    ssd1306_UpdateScreen();
+
+    // Set default values for screen object
+    SSD1306.CurrentX = 0;
+    SSD1306.CurrentY = 0;
+
+    SSD1306.Initialized = 1;
 }
