@@ -142,16 +142,7 @@ void oled_tone_screen(int tone)
 
 	char tone_screen[5] = "Tone";
 	char tone_scc[7] = "Screen";
-	for(int x = WIDTH; x > MID_X_POS_MED; x--)
-	{
-		ssd1306_SetCursor(x, 10);
-		ssd1306_WriteString(tone_screen, FONT_MED, Black);
-		ssd1306_SetCursor(x, 40);
-		ssd1306_WriteString(tone_scc, FONT_MED, Black);
-		ssd1306_UpdateScreen();
-	}
 
-	HAL_Delay(3000);
 
 	ssd1306_Fill(White);
 	ssd1306_SetCursor(84, MID_Y_POS_MED);
@@ -161,8 +152,8 @@ void oled_tone_screen(int tone)
 	ssd1306_SetCursor(18, MID_Y_POS_MED);
 	ssd1306_WriteString("Tone: ", FONT_MED, Black);
 	ssd1306_UpdateScreen();
+	HAL_Delay(100);
 
-	HAL_Delay(3000);
 }
 
 void oled_timing_screen(int timing)
@@ -170,29 +161,17 @@ void oled_timing_screen(int timing)
 
 	ssd1306_Fill(White);
 
-	char timing_screen[7] = "Timing";
-	char timing_scc[7] = "Screen";
-	for(int x = WIDTH; x > MID_X_POS_MED; x--)
-	{
-		ssd1306_SetCursor(x, 10);
-		ssd1306_WriteString(timing_screen, FONT_MED, Black);
-		ssd1306_SetCursor(x, 40);
-		ssd1306_WriteString(timing_scc, FONT_MED, Black);
-		ssd1306_UpdateScreen();
-	}
-
-	HAL_Delay(3000);
 
 	ssd1306_Fill(White);
-	ssd1306_SetCursor(90, MID_Y_POS_MED);
+	ssd1306_SetCursor(30, MID_Y_POS_MED);
 	char timing_string[10];
 	sprintf(timing_string,"%d", timing);
 	ssd1306_WriteString(timing_string, FONT_MED, Black);
-	ssd1306_SetCursor(5, MID_Y_POS_MED);
-	ssd1306_WriteString("Timing: ", FONT_MED, Black);
+	ssd1306_SetCursor(70, MID_Y_POS_MED);
+	ssd1306_WriteString(" BPM", FONT_MED, Black);
 	ssd1306_UpdateScreen();
+	HAL_Delay(100);
 
-	HAL_Delay(3000);
 }
 
 
@@ -201,17 +180,16 @@ void oled_selection_screen(void)
 	ssd1306_Fill(White);
 
 	char selection_screen[5] = "Tone";
-	char select_screen[7] = "Timing";
+	char *timing_screen = "Metronome";
 	for(int x = 98; x > MID_X_POS_MED; x--)
 	{
 		ssd1306_SetCursor(40, 10);
 		ssd1306_WriteString(selection_screen, FONT_MED, Black);
-		ssd1306_SetCursor(30, 40);
-		ssd1306_WriteString(select_screen, FONT_MED, Black);
+		ssd1306_SetCursor(15, 40);
+		ssd1306_WriteString(timing_screen, FONT_MED, Black);
 		ssd1306_UpdateScreen();
 
 	}
-	HAL_Delay(3000);
 }
 
 

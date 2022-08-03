@@ -60,6 +60,10 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define Button2_Pin GPIO_PIN_6
+#define Button2_GPIO_Port GPIOA
+#define Button3_Pin GPIO_PIN_7
+#define Button3_GPIO_Port GPIOA
 #define Switch_High_Pin GPIO_PIN_15
 #define Switch_High_GPIO_Port GPIOB
 #define Switch_Int_Pin GPIO_PIN_8
@@ -67,6 +71,10 @@ void Error_Handler(void);
 #define Switch_Int_EXTI_IRQn EXTI9_5_IRQn
 #define LED_BLUE_Pin GPIO_PIN_15
 #define LED_BLUE_GPIO_Port GPIOA
+#define Button1_Pin GPIO_PIN_8
+#define Button1_GPIO_Port GPIOB
+#define Button2_Vcc_Pin GPIO_PIN_9
+#define Button2_Vcc_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 

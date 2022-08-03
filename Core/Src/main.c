@@ -198,26 +198,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef*htim)
 
 		}
 
-	if (htim->Instance == 10)
-		{
-			//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
-			//HAL_Delay(100);
-			//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
-			//HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
-
-
-		}
-
+	} else if (htim->Instance == TIM2)
+	{
+		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
+		HAL_Delay(100);
+		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
 	}
-	//HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1);
-	//HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
-	//HAL_Delay(200);
-	//HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
-
 }
 
-//40014400
-//40000000
 
 /*  HAL_TIM_SET_PRESCALER(&htim2,newValue); */
 
@@ -519,79 +507,60 @@ void state_get_pitch()
 }
 
 
-/*
 
-void state_get_pitch_error()
+
+
+void metronome(void)
 {
-	float32_t freq = 0;
-	float32_t target_freq = curr_target_string[string_tracking];
+
+	HAL_TIM_Base_Start_IT(&htim2);
 
 
 
-	get_frequency(&guitar_signal[0], target_freq, &freq);
+	int bpm = 100;
 
-	float32_t error = get_error_in_cents(freq, target_freq);
+	oled_timing_screen(bpm);
+	ssd1306_UpdateScreen();
 
-	if (-400 < error && error < 400 )
+
+
+
+	while (1)
 	{
-		*table_pos_ptr = error;
+		int exit = HAL_GPIO_ReadPin(Button1_GPIO_Port, Button1_Pin);
 
-		if(table_pos_ptr == &pitch_table[TABLE_SIZE - 1])
+		if (exit == 1)
 		{
-			table_pos_ptr = &pitch_table[0];
-		}else
-		{
-			table_pos_ptr++;
+			HAL_TIM_Base_Stop_IT(&htim2);
+			return;
 		}
 
-		qsort(pitch_table, TABLE_SIZE, sizeof(float32_t), cmpfunc);
-		float32_t median_error = pitch_table[TABLE_CENTRE];
+		if (HAL_GPIO_ReadPin(Button2_GPIO_Port, Button2_Pin))
+		{
+			bpm++;
+			oled_timing_screen(bpm);
+			ssd1306_UpdateScreen();
 
-
-		if (median_error < -10)
-		{
-			answer_counter = 0;
-			state = state_tune_up_fine;
-		} else if (median_error > 10)
-		{
-			answer_counter = 0;
-			state = state_tune_down_fine;
-		}else
-		{
-			answer_counter++;
 		}
-
-		if (answer_counter > MAX_CORRECT)
+		if (HAL_GPIO_ReadPin(Button3_GPIO_Port, Button3_Pin))
 		{
-
-			 HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
-			 HAL_Delay(2000);
-			 HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
-			 string_tracking++;
-			 if(string_tracking == NUM_STRINGS)
-			 {
-				 string_tracking = 0;
-			 }
-			 answer_counter = 0;
+			bpm--;
+			oled_timing_screen(bpm);
+			ssd1306_UpdateScreen();
 
 		}
 
 
+		__HAL_TIM_SET_PRESCALER(&htim2, bpm * 100);
 
-		oled_print_f32(&median_error);
 
-	}else
-	{
-		oled_clear_screen();
 	}
+
+
+
 
 }
 
-
-
-
-
-*/
 
 
 
@@ -664,8 +633,8 @@ int main(void)
     myMpuConfig.Sleep_Mode_Bit = 0;
     MPU6050_Config(&myMpuConfig);
 
-	HAL_TIM_Base_Start_IT(&htim16);
-	HAL_TIM_Base_Start_IT(&htim2);
+	//HAL_TIM_Base_Start_IT(&htim16);
+
 
 
 	state = state_get_pitch;
@@ -673,10 +642,12 @@ int main(void)
 
 
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);
 
 
 
-
+	int counter = 0;
 
 
   /* USER CODE END 2 */
@@ -688,17 +659,58 @@ int main(void)
 	{
 		if (mode == 0)
 		{
-			oled_selection_screen();
 
 
 
+
+			int Button1_val = HAL_GPIO_ReadPin(Button1_GPIO_Port, Button1_Pin);
+			int Button2_val = HAL_GPIO_ReadPin(Button2_GPIO_Port, Button2_Pin);
+			int Button3_val = HAL_GPIO_ReadPin(Button3_GPIO_Port, Button3_Pin);
+
+			if (Button2_val == 1 || Button3_val == 1)
+			{
+
+				if (counter == 0 )
+				{
+
+					oled_selection_screen();
+					ssd1306_DrawRectangle(0, 36, 128,  58, 0);
+					ssd1306_UpdateScreen();
+					counter = 1;
+					HAL_Delay(100);
+
+				} else
+				{
+					oled_selection_screen();
+					ssd1306_DrawRectangle(0, 8, 128,  30, 0);
+					ssd1306_UpdateScreen();
+
+					counter = 0;
+					HAL_Delay(100);
+				}
+			}
+
+			if (Button1_val == 1)
+			{
+				if (counter == 0)
+				{
+					oled_tone_screen(100);
+					ssd1306_UpdateScreen();
+					HAL_Delay(200);
+			} else {
+					metronome();
+					oled_selection_screen();
+					HAL_Delay(200);
+
+
+				}
+			}
 
 
 		}else if (mode == 1)
 		{
 			//oled_timing_screen(100);
 			state();
-
 
 		}
 
@@ -1074,7 +1086,7 @@ static void MX_TIM2_Init(void)
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 8000 - 1;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 10000 - 1;
+  htim2.Init.Period = 8000 - 1;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -1205,6 +1217,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1|LED_BLUE_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0|Button2_Vcc_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(Switch_High_GPIO_Port, Switch_High_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pins : PA1 LED_BLUE_Pin */
@@ -1214,18 +1229,30 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : Switch_High_Pin */
-  GPIO_InitStruct.Pin = Switch_High_Pin;
+  /*Configure GPIO pins : Button2_Pin Button3_Pin */
+  GPIO_InitStruct.Pin = Button2_Pin|Button3_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PB0 Switch_High_Pin Button2_Vcc_Pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|Switch_High_Pin|Button2_Vcc_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(Switch_High_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : Switch_Int_Pin */
   GPIO_InitStruct.Pin = Switch_Int_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(Switch_Int_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : Button1_Pin */
+  GPIO_InitStruct.Pin = Button1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(Button1_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI9_5_IRQn, 1, 0);
@@ -1240,22 +1267,25 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 	Screenmode = HAL_GPIO_ReadPin(GPIOA, Switch_Int_Pin);
 
-	oled_clear_screen();
+
 
 	if (Screenmode == 0)
 	{
+		oled_selection_screen();
 		mode = 0;
 
 	} else
 	{
+		oled_clear_screen();
 		mode = 1;
 		char *s = "Tuning";
 		oled_print_string(s);
 		HAL_Delay(2000);
+		oled_clear_screen();
 
 	}
 
-	oled_clear_screen();
+
 }
 
 /* USER CODE END 4 */
