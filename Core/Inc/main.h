@@ -60,6 +60,11 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define Switch_High_Pin GPIO_PIN_15
+#define Switch_High_GPIO_Port GPIOB
+#define Switch_Int_Pin GPIO_PIN_8
+#define Switch_Int_GPIO_Port GPIOA
+#define Switch_Int_EXTI_IRQn EXTI9_5_IRQn
 #define LED_BLUE_Pin GPIO_PIN_15
 #define LED_BLUE_GPIO_Port GPIOA
 /* USER CODE BEGIN Private defines */

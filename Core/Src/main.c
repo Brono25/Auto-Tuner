@@ -102,9 +102,11 @@ TIM_HandleTypeDef htim16;
 
 int motor_wait = 0;
 int callback_state = 0;
+int Screenmode = 0;
 int string_tracking = E2_STRING_NUM;
 float32_t curr_target_string[NUM_STRINGS];
 
+int mode = 0;
 
 int correct_pitch_counter = 0;
 
@@ -176,6 +178,7 @@ void state_tune();
 /* USER CODE BEGIN 0 */
 
 
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef*htim)
 {
 
@@ -195,12 +198,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef*htim)
 
 		}
 
-	if (htim->Instance == 0x40014400)
+	if (htim->Instance == 10)
 		{
 			//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
-			HAL_Delay(100);
+			//HAL_Delay(100);
 			//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
-			HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
+			//HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
 
 
 		}
@@ -604,41 +607,41 @@ void state_get_pitch_error()
   */
 int main(void)
 {
-	/* USER CODE BEGIN 1 */
+  /* USER CODE BEGIN 1 */
 
 	MPU_ConfigTypeDef myMpuConfig;
 
-	/* USER CODE END 1 */
+  /* USER CODE END 1 */
 
-	/* MCU Configuration--------------------------------------------------------*/
+  /* MCU Configuration--------------------------------------------------------*/
 
-	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-	HAL_Init();
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
 
-	/* USER CODE BEGIN Init */
+  /* USER CODE BEGIN Init */
 
-	/* USER CODE END Init */
+  /* USER CODE END Init */
 
-	/* Configure the system clock */
-	SystemClock_Config();
+  /* Configure the system clock */
+  SystemClock_Config();
 
-	/* USER CODE BEGIN SysInit */
+  /* USER CODE BEGIN SysInit */
 
-	/* USER CODE END SysInit */
+  /* USER CODE END SysInit */
 
-	/* Initialize all configured peripherals */
-	MX_GPIO_Init();
-	MX_DMA_Init();
-	MX_TIM6_Init();
-	MX_OPAMP1_Init();
-	MX_ADC1_Init();
-	MX_I2C1_Init();
-	MX_DAC1_Init();
-	MX_TIM1_Init();
-	MX_I2C2_Init();
-	MX_TIM16_Init();
-	MX_TIM2_Init();
-	/* USER CODE BEGIN 2 */
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_DMA_Init();
+  MX_TIM6_Init();
+  MX_OPAMP1_Init();
+  MX_ADC1_Init();
+  MX_I2C1_Init();
+  MX_DAC1_Init();
+  MX_TIM1_Init();
+  MX_I2C2_Init();
+  MX_TIM16_Init();
+  MX_TIM2_Init();
+  /* USER CODE BEGIN 2 */
 	HAL_TIM_Base_Start(&htim6);
 	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
 
@@ -669,7 +672,7 @@ int main(void)
 
 
 
-
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
 
 
 
@@ -680,10 +683,26 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+	/*-------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 	while (1)
 	{
+		if (mode == 0)
+		{
+			oled_selection_screen();
 
-		state();
+
+
+
+
+		}else if (mode == 1)
+		{
+			//oled_timing_screen(100);
+			state();
+
+
+		}
+
+
 
 
 
@@ -695,17 +714,6 @@ int main(void)
 	}
   /* USER CODE END 3 */
 }
-
-
-
-
-
-
-
-
-
-
-
 
 /**
   * @brief System Clock Configuration
@@ -912,7 +920,7 @@ static void MX_I2C2_Init(void)
 
   /* USER CODE END I2C2_Init 1 */
   hi2c2.Instance = I2C2;
-  hi2c2.Init.Timing = 0x10909CEC;
+  hi2c2.Init.Timing = 0x00300F33;
   hi2c2.Init.OwnAddress1 = 0;
   hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -936,6 +944,9 @@ static void MX_I2C2_Init(void)
   {
     Error_Handler();
   }
+  /** I2C Fast mode Plus enable
+  */
+  HAL_I2CEx_EnableFastModePlus(I2C_FASTMODEPLUS_I2C2);
   /* USER CODE BEGIN I2C2_Init 2 */
 
   /* USER CODE END I2C2_Init 2 */
@@ -1193,6 +1204,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1|LED_BLUE_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(Switch_High_GPIO_Port, Switch_High_Pin, GPIO_PIN_SET);
+
   /*Configure GPIO pins : PA1 LED_BLUE_Pin */
   GPIO_InitStruct.Pin = GPIO_PIN_1|LED_BLUE_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -1200,9 +1214,49 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : Switch_High_Pin */
+  GPIO_InitStruct.Pin = Switch_High_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(Switch_High_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : Switch_Int_Pin */
+  GPIO_InitStruct.Pin = Switch_Int_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(Switch_Int_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 1, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
 }
 
 /* USER CODE BEGIN 4 */
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+
+	Screenmode = HAL_GPIO_ReadPin(GPIOA, Switch_Int_Pin);
+
+	oled_clear_screen();
+
+	if (Screenmode == 0)
+	{
+		mode = 0;
+
+	} else
+	{
+		mode = 1;
+		char *s = "Tuning";
+		oled_print_string(s);
+		HAL_Delay(2000);
+
+	}
+
+	oled_clear_screen();
+}
 
 /* USER CODE END 4 */
 
