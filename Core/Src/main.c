@@ -59,13 +59,20 @@
 #define B3 246.94
 #define E4 329.63
 
+#define E2_STRING_NUM 0
+#define A2_STRING_NUM 1
+#define D3_STRING_NUM 2
+#define G3_STRING_NUM 3
+#define B3_STRING_NUM 4
+#define E4_STRING_NUM 5
+
 #define U_FREQ_ERROR 20
 #define L_FREQ_ERROR 20
 
 
 #define TABLE_SIZE   5  //must be odd
 #define TABLE_CENTRE TABLE_SIZE / 2
-#define MAX_CORRECT 10
+#define MIN_CORRECT 3
 
 /* USER CODE END PD */
 
@@ -93,10 +100,13 @@ TIM_HandleTypeDef htim16;
 
 /* USER CODE BEGIN PV */
 
+int motor_wait = 0;
 int callback_state = 0;
-int string_tracking = 0;
+int string_tracking = E2_STRING_NUM;
 float32_t curr_target_string[NUM_STRINGS];
-int answer_counter = 0;
+
+
+int correct_pitch_counter = 0;
 
 
 //Current state
@@ -151,9 +161,14 @@ static void MX_TIM16_Init(void);
 static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 
-
+void state_string_pitch(int UPP_LIM, int LOW_LIM, float32_t target_freq);
 void state_get_pitch_error();
-void state_tune_up();
+void state_tune_up_fine();
+void state_tune_down_fine();
+void state_tune_down_fast();
+void state_tune_up_fast();
+void state_get_pitch();
+void state_tune();
 
 /* USER CODE END PFP */
 
@@ -169,23 +184,25 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef*htim)
 	{
 		MPU6050_Get_Accel_Scale(&myAccelScaled);
 		MPU6050_Get_Gyro_Scale(&myGyroScaled);
-		if (myAccelScaled.x > 0 && screenflip == 0) {
+		if (myAccelScaled.x > 0 && screenflip == 0)
+		{
 			ssd1306_Init1();
 			screenflip = 1;
-		} else if (myAccelScaled.x < 0 && screenflip == 1){
+		} else if (myAccelScaled.x < 0 && screenflip == 1)
+		{
 			ssd1306_Init2();
 			screenflip = 0;
 
-	}
+		}
 
 	if (htim->Instance == 0x40014400)
 		{
-			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
+			//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
 			HAL_Delay(100);
-			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
+			//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
 			HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
 
-			__HAL_TIM_SET_PRESCALER(&htim2,newValue);
+
 		}
 
 	}
@@ -199,7 +216,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef*htim)
 //40014400
 //40000000
 
-
+/*  HAL_TIM_SET_PRESCALER(&htim2,newValue); */
 
 void init_tunings()
 {
@@ -270,16 +287,7 @@ void get_frequency(float32_t *signal, float32_t target_freq, float32_t *out_freq
 		float32_t curr_freq = 0;
 		mpm_mcleod_pitch_method_f32(&signal[0], &curr_freq);
 		callback_state = 0;
-
-		if(target_freq - L_FREQ_ERROR < curr_freq && curr_freq < target_freq + U_FREQ_ERROR)
-		{
-			*out_freq = curr_freq;
-			//oled_print_f32(&curr_freq);
-		} else
-		{
-			*out_freq = 0;
-			//oled_clear_screen();
-		}
+		*out_freq = ceill(4 * curr_freq) / 4;
 	}
 }
 
@@ -290,28 +298,225 @@ float32_t get_error_in_cents(float32_t curr_frequency, float32_t target_frequenc
 }
 
 
-void state_tune_up()
+void toggle_motor_wait()
+{
+	if (motor_wait == 2)
+	{
+		motor_wait = 0;
+	} else
+	{
+		motor_wait++;
+	}
+}
+
+void state_tune_up_fine()
 {
 	int pulse_width = 46;
 	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pulse_width);
 	HAL_Delay(100);
 	pulse_width = 50;
 	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pulse_width);
-	state = state_get_pitch_error;
-	//HAL_Delay(250);
+	state = state_get_pitch;
 }
 
-void state_tune_down()
+void state_tune_up_fast()
+{
+	int pulse_width = 40;
+	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pulse_width);
+	HAL_Delay(200);
+	pulse_width = 50;
+	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pulse_width);
+	HAL_Delay(100);
+	motor_wait = 0;
+	state = state_get_pitch;
+}
+
+void state_tune_down_fine()
 {
 	int pulse_width = 54;
 	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pulse_width);
-	HAL_Delay(150);
+	HAL_Delay(100);
 	pulse_width = 50;
 	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pulse_width);
-	state = state_get_pitch_error;
-	//HAL_Delay(250);
+	state = state_get_pitch;
 }
 
+void state_tune_down_fast()
+{
+	int pulse_width = 64;
+	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pulse_width);
+	HAL_Delay(200);
+	pulse_width = 50;
+	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pulse_width);
+	HAL_Delay(100);
+	motor_wait = 0;
+	state = state_get_pitch;
+}
+
+
+void iterate_table_pos()
+{
+	if(table_pos_ptr == &pitch_table[TABLE_SIZE - 1])
+	{
+		table_pos_ptr = &pitch_table[0];
+	}else
+	{
+		table_pos_ptr++;
+	}
+
+}
+
+float32_t  get_min_table()
+{
+
+	float32_t min = pitch_table[0];
+	for (int i = 0; i < TABLE_SIZE; i++)
+	{
+		if(pitch_table[i] < min)
+		{
+			min = pitch_table[i];
+		}
+	}
+	//qsort(pitch_table, TABLE_SIZE, sizeof(float32_t), cmpfunc);
+	//float32_t median_error = tmp[TABLE_CENTRE];
+	return min;
+}
+
+
+int init_table(int PITCH_U, int PITCH_L, float32_t target_freq)
+{
+	#define END TABLE_SIZE - 1
+
+	if( pitch_table[END] < PITCH_L || pitch_table[END] > PITCH_U)
+	{
+		float32_t freq = 0;
+		get_frequency(&guitar_signal[0], target_freq, &freq);
+		if(PITCH_L < freq && freq < PITCH_U)
+		{
+			*table_pos_ptr = freq;
+			iterate_table_pos();
+			return 1;
+		}
+	}
+	return 0;
+}
+
+
+
+void state_string_pitch(int UPP_LIM, int LOW_LIM, float32_t target_freq)
+{
+
+	if (correct_pitch_counter ==  MIN_CORRECT)
+	{
+		char *str = "Correct";
+		oled_print_string(str);
+		string_tracking++;
+		correct_pitch_counter = 0;
+		HAL_Delay(2000);
+		return;
+	}
+
+	while(init_table(UPP_LIM, LOW_LIM, target_freq));
+
+	float32_t freq = 0;
+	get_frequency(&guitar_signal[0], target_freq, &freq);
+
+	if(LOW_LIM < freq && freq < UPP_LIM)
+	{
+		*table_pos_ptr = freq;
+		iterate_table_pos();
+		float32_t m_freq = get_min_table();
+		float32_t error = get_error_in_cents(m_freq, target_freq);
+		oled_print_f32(&error);
+
+		if (motor_wait == 0)
+		{
+			if(error > 40) {
+				state = state_tune_down_fast;
+				correct_pitch_counter = 0;
+			} else if (error > 7)
+			{
+				state = state_tune_down_fine;
+				correct_pitch_counter = 0;
+			}else if(error < -40.0)
+			{
+
+				state = state_tune_up_fast;
+				correct_pitch_counter = 0;
+			}else if(error < -7)
+			{
+				state = state_tune_up_fine;
+				correct_pitch_counter = 0;
+			} else
+			{
+				correct_pitch_counter++;
+			}
+		}
+	}
+	else
+	{
+		oled_clear_screen();
+	}
+	toggle_motor_wait();
+}
+
+
+void state_get_pitch()
+{
+	#define E2_U 100
+	#define E2_L 55
+	#define A2_U 140
+	#define A2_L 85
+	#define D3_U 190
+	#define D3_L 115
+	#define G3_U 230
+	#define G3_L 155
+	#define B3_U 320
+	#define B3_L 205
+	#define E4_U 350
+	#define E4_L 305
+
+	if (string_tracking == E2_STRING_NUM)
+	{
+		state_string_pitch(E2_U, E2_L, E2);
+
+	} else if (string_tracking == A2_STRING_NUM)
+	{
+		state_string_pitch(A2_U, A2_L, A2);
+
+	}else if (string_tracking == D3_STRING_NUM)
+	{
+		state_string_pitch(D3_U, D3_L, D3);
+
+	}else if (string_tracking == G3_STRING_NUM)
+	{
+		state_string_pitch(G3_U, G3_L, G3);
+
+	}else if (string_tracking == B3_STRING_NUM)
+	{
+		state_string_pitch(B3_U, B3_L, B3);
+
+	}else if (string_tracking == E4_STRING_NUM)
+	{
+		state_string_pitch(E4_U, E4_L, E4);
+	} else
+	{
+		string_tracking =  E2_STRING_NUM;
+	}
+
+
+
+
+
+
+
+
+
+
+}
+
+
+/*
 
 void state_get_pitch_error()
 {
@@ -343,11 +548,11 @@ void state_get_pitch_error()
 		if (median_error < -10)
 		{
 			answer_counter = 0;
-			state = state_tune_up;
+			state = state_tune_up_fine;
 		} else if (median_error > 10)
 		{
 			answer_counter = 0;
-			state = state_tune_down;
+			state = state_tune_down_fine;
 		}else
 		{
 			answer_counter++;
@@ -383,7 +588,7 @@ void state_get_pitch_error()
 
 
 
-
+*/
 
 
 
@@ -399,41 +604,41 @@ void state_get_pitch_error()
   */
 int main(void)
 {
-  /* USER CODE BEGIN 1 */
+	/* USER CODE BEGIN 1 */
 
 	MPU_ConfigTypeDef myMpuConfig;
 
-  /* USER CODE END 1 */
+	/* USER CODE END 1 */
 
-  /* MCU Configuration--------------------------------------------------------*/
+	/* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+	HAL_Init();
 
-  /* USER CODE BEGIN Init */
+	/* USER CODE BEGIN Init */
 
-  /* USER CODE END Init */
+	/* USER CODE END Init */
 
-  /* Configure the system clock */
-  SystemClock_Config();
+	/* Configure the system clock */
+	SystemClock_Config();
 
-  /* USER CODE BEGIN SysInit */
+	/* USER CODE BEGIN SysInit */
 
-  /* USER CODE END SysInit */
+	/* USER CODE END SysInit */
 
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  MX_DMA_Init();
-  MX_TIM6_Init();
-  MX_OPAMP1_Init();
-  MX_ADC1_Init();
-  MX_I2C1_Init();
-  MX_DAC1_Init();
-  MX_TIM1_Init();
-  MX_I2C2_Init();
-  MX_TIM16_Init();
-  MX_TIM2_Init();
-  /* USER CODE BEGIN 2 */
+	/* Initialize all configured peripherals */
+	MX_GPIO_Init();
+	MX_DMA_Init();
+	MX_TIM6_Init();
+	MX_OPAMP1_Init();
+	MX_ADC1_Init();
+	MX_I2C1_Init();
+	MX_DAC1_Init();
+	MX_TIM1_Init();
+	MX_I2C2_Init();
+	MX_TIM16_Init();
+	MX_TIM2_Init();
+	/* USER CODE BEGIN 2 */
 	HAL_TIM_Base_Start(&htim6);
 	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
 
@@ -459,12 +664,13 @@ int main(void)
 	HAL_TIM_Base_Start_IT(&htim16);
 	HAL_TIM_Base_Start_IT(&htim2);
 
-	for(int i = 0; i < TABLE_SIZE; i++)
-	{
-		pitch_table[i] = 11;
-	}
 
-	state = state_get_pitch_error;
+	state = state_get_pitch;
+
+
+
+
+
 
 
 
@@ -489,6 +695,17 @@ int main(void)
 	}
   /* USER CODE END 3 */
 }
+
+
+
+
+
+
+
+
+
+
+
 
 /**
   * @brief System Clock Configuration
