@@ -28,6 +28,7 @@
 #include "mpm.h"
 #include "TJ_MPU6050.h"
 #include "ssd1306.h"
+#include <math.h>
 
 /* USER CODE END Includes */
 
@@ -96,6 +97,7 @@ OPAMP_HandleTypeDef hopamp1;
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim6;
+TIM_HandleTypeDef htim7;
 TIM_HandleTypeDef htim16;
 
 /* USER CODE BEGIN PV */
@@ -146,6 +148,9 @@ static float iir_taps[5] = {
 							};
 
 
+char * guitar_strings[] = { "E2", "A2", "D3", "G3", "B3", "E4" };
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -161,6 +166,7 @@ static void MX_TIM1_Init(void);
 static void MX_I2C2_Init(void);
 static void MX_TIM16_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_TIM7_Init(void);
 /* USER CODE BEGIN PFP */
 
 void state_string_pitch(int UPP_LIM, int LOW_LIM, float32_t target_freq);
@@ -179,12 +185,15 @@ void state_tune();
 
 
 
+
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef*htim)
 {
 
 
 	if(htim->Instance == TIM16)
 	{
+
 		MPU6050_Get_Accel_Scale(&myAccelScaled);
 		MPU6050_Get_Gyro_Scale(&myGyroScaled);
 		if (myAccelScaled.x > 0 && screenflip == 0)
@@ -195,13 +204,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef*htim)
 		{
 			ssd1306_Init2();
 			screenflip = 0;
-
 		}
 
 	} else if (htim->Instance == TIM2)
 	{
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
-		HAL_Delay(100);
+		HAL_Delay(50);
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
 	}
 }
@@ -394,15 +402,27 @@ int init_table(int PITCH_U, int PITCH_L, float32_t target_freq)
 
 
 
+
+
 void state_string_pitch(int UPP_LIM, int LOW_LIM, float32_t target_freq)
 {
 
 	if (correct_pitch_counter ==  MIN_CORRECT)
 	{
-		char *str = "Correct";
+		oled_clear_screen();
+		char *str = "Next";
 		oled_print_string(str);
 		string_tracking++;
 		correct_pitch_counter = 0;
+
+
+		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
+		HAL_Delay(50);
+		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
+		HAL_Delay(200);
+		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
+		HAL_Delay(50);
+		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
 		HAL_Delay(2000);
 		return;
 	}
@@ -418,7 +438,8 @@ void state_string_pitch(int UPP_LIM, int LOW_LIM, float32_t target_freq)
 		iterate_table_pos();
 		float32_t m_freq = get_min_table();
 		float32_t error = get_error_in_cents(m_freq, target_freq);
-		oled_print_f32(&error);
+
+		oled_print_pitch_indicator_screen(guitar_strings[string_tracking], (int) error);
 
 		if (motor_wait == 0)
 		{
@@ -446,7 +467,7 @@ void state_string_pitch(int UPP_LIM, int LOW_LIM, float32_t target_freq)
 	}
 	else
 	{
-		oled_clear_screen();
+		oled_clear_pitch_indicator_tick(guitar_strings[string_tracking]);
 	}
 	toggle_motor_wait();
 }
@@ -515,15 +536,10 @@ void metronome(void)
 
 	HAL_TIM_Base_Start_IT(&htim2);
 
-
-
 	int bpm = 100;
 
 	oled_timing_screen(bpm);
 	ssd1306_UpdateScreen();
-
-
-
 
 	while (1)
 	{
@@ -550,19 +566,68 @@ void metronome(void)
 
 		}
 
+		int pre_scalar = 10000 * 60 / bpm;
+		__HAL_TIM_SET_PRESCALER(&htim2, pre_scalar);
 
-		__HAL_TIM_SET_PRESCALER(&htim2, bpm * 100);
+	}
+
+}
+
+
+
+
+void get_sineval(uint32_t *sineval)
+{
+	for (int i=0; i<100; i++)
+	{
+		sineval[i] = 0.5 * ((sin(i*2*PI/100)+1)*(4096/2));
+	}
+}
+
+void tone_gen(void)
+{
+
+	oled_tone_screen(100);
+	HAL_TIM_Base_Start(&htim7);
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
+	HAL_Delay(300);
+
+	uint32_t sineval[100];
+
+
+	HAL_DAC_Start_DMA(&hdac1, DAC1_CHANNEL_1 , sineval, 100, DAC_ALIGN_12B_R);
+
+	while (1)
+	{
+		int exit = HAL_GPIO_ReadPin(Button1_GPIO_Port, Button1_Pin);
+
+		if (exit == 1)
+		{
+			HAL_DAC_Stop_DMA(&hdac1, DAC1_CHANNEL_1);
+			//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
+			HAL_TIM_Base_Stop(&htim7);
+			return;
+		}
+
+		if (HAL_GPIO_ReadPin(Button2_GPIO_Port, Button2_Pin))
+		{
+
+		}
+		if (HAL_GPIO_ReadPin(Button3_GPIO_Port, Button3_Pin))
+		{
+
+
+		}
+
+		get_sineval(&sineval[0]);
+
 
 
 	}
 
 
 
-
 }
-
-
-
 
 
 
@@ -610,6 +675,7 @@ int main(void)
   MX_I2C2_Init();
   MX_TIM16_Init();
   MX_TIM2_Init();
+  MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
 	HAL_TIM_Base_Start(&htim6);
 	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
@@ -633,7 +699,7 @@ int main(void)
     myMpuConfig.Sleep_Mode_Bit = 0;
     MPU6050_Config(&myMpuConfig);
 
-	//HAL_TIM_Base_Start_IT(&htim16);
+	HAL_TIM_Base_Start_IT(&htim16);
 
 
 
@@ -694,10 +760,13 @@ int main(void)
 			{
 				if (counter == 0)
 				{
-					oled_tone_screen(100);
-					ssd1306_UpdateScreen();
+
+					tone_gen();
+					oled_selection_screen();
 					HAL_Delay(200);
+
 			} else {
+
 					metronome();
 					oled_selection_screen();
 					HAL_Delay(200);
@@ -856,9 +925,9 @@ static void MX_DAC1_Init(void)
   /** DAC channel OUT1 config
   */
   sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
-  sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
+  sConfig.DAC_Trigger = DAC_TRIGGER_T7_TRGO;
   sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
-  sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_DISABLE;
+  sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_ENABLE;
   sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
   if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_1) != HAL_OK)
   {
@@ -1084,7 +1153,7 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 8000 - 1;
+  htim2.Init.Prescaler = 10000- 1;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim2.Init.Period = 8000 - 1;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -1145,6 +1214,44 @@ static void MX_TIM6_Init(void)
   /* USER CODE BEGIN TIM6_Init 2 */
 
   /* USER CODE END TIM6_Init 2 */
+
+}
+
+/**
+  * @brief TIM7 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM7_Init(void)
+{
+
+  /* USER CODE BEGIN TIM7_Init 0 */
+
+  /* USER CODE END TIM7_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM7_Init 1 */
+
+  /* USER CODE END TIM7_Init 1 */
+  htim7.Instance = TIM7;
+  htim7.Init.Prescaler = 800 - 1;
+  htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim7.Init.Period = 10 - 1;
+  htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim7, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM7_Init 2 */
+
+  /* USER CODE END TIM7_Init 2 */
 
 }
 

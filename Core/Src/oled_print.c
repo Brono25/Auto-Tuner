@@ -69,9 +69,8 @@ void oled_print_f32(float *var)
 {
 	char var_string[10] = {0};
 	sprintf(var_string,"%.1f", *var);
-
-	ssd1306_WriteString(var_string, FONT_LARGE, Black);
 	ssd1306_SetCursor(25, 24);
+	ssd1306_WriteString(var_string, FONT_LARGE, Black);
 	ssd1306_UpdateScreen();
 }
 
@@ -79,9 +78,8 @@ void oled_print_int16(int16_t var)
 {
 	char var_string[10] = {0};
 	sprintf(var_string,"%hd", var);
-
-	ssd1306_WriteString(var_string, FONT_LARGE, Black);
 	ssd1306_SetCursor(25, 24);
+	ssd1306_WriteString(var_string, FONT_LARGE, Black);
 	ssd1306_UpdateScreen();
 }
 
@@ -96,19 +94,27 @@ void oled_clear_screen(void)
 
 }
 
-void oled_print_pitch_indicator_screen(char *pitch)
+void oled_print_pitch_indicator_screen(char *guit_string, int error)
 {
+
 	ssd1306_Fill(White);
-	ssd1306_SetCursor(SCREEN_CENTRE_X - 2*CHAR_PIXEL , CHAR_PIXEL);
-	ssd1306_WriteString(pitch, FONT_MED, Black);
+	ssd1306_DrawCircle(SCREEN_CENTRE_X, SCREEN_CENTRE_Y, RADIUS, Black);
+	ssd1306_SetCursor(50, 5);
+	ssd1306_WriteString(guit_string, FONT_LARGE, Black);
+
+	int x_pos = round(error/2) + 62;
+	if (x_pos < 1)
+	{
+		x_pos = 1;
+	}
+	else if (x_pos > 126)
+	{
+		x_pos = 126;
+	}
+	ssd1306_SetCursor(x_pos , 30);
+
 	char indicator = '|';
-	ssd1306_SetCursor(SCREEN_CENTRE_X - CHAR_PIXEL , 4 * CHAR_PIXEL);
-	ssd1306_WriteChar(indicator, FONT_MED, Black);
-
-
-
-	//ssd1306_SetCursor(freq , 8 * CHAR_PIXEL);
-	//ssd1306_WriteString(indicator, FONT_MED, Black);
+	ssd1306_WriteChar(indicator, FONT_LARGE, Black);
 
 	ssd1306_UpdateScreen();
 
@@ -116,20 +122,14 @@ void oled_print_pitch_indicator_screen(char *pitch)
 }
 
 
-void oled_update_pitch_indicator_tick(float freq)
+void oled_clear_pitch_indicator_tick(char *guit_string)
 {
 
-	int q = (int) 2 *  floor((2 * freq) + 0.5) / 2;
-	//char var_string[10] = {0};
-
-	int tick_pos = q - 102;
-
-	ssd1306_SetCursor(tick_pos, 8 * CHAR_PIXEL);
-	ssd1306_WriteChar('|', FONT_MED, Black);
+	ssd1306_Fill(White);
+	ssd1306_DrawCircle(SCREEN_CENTRE_X, SCREEN_CENTRE_Y, RADIUS, Black);
+	ssd1306_SetCursor(50, 5);
+	ssd1306_WriteString(guit_string, FONT_LARGE, Black);
 	ssd1306_UpdateScreen();
-
-
-
 
 }
 
@@ -138,10 +138,6 @@ void oled_update_pitch_indicator_tick(float freq)
 void oled_tone_screen(int tone)
 {
 
-	ssd1306_Fill(White);
-
-	char tone_screen[5] = "Tone";
-	char tone_scc[7] = "Screen";
 
 
 	ssd1306_Fill(White);
@@ -193,5 +189,36 @@ void oled_selection_screen(void)
 }
 
 
+void oled_print_string_tuning(char *guit_string, int error)
+{
+
+	char err_string[20] = {0};
+	sprintf(err_string,"%d cents",  error);
+
+	ssd1306_SetCursor(35, 40);
+	ssd1306_WriteString(err_string, FONT_MED, Black);
+
+	ssd1306_WriteString(guit_string, FONT_LARGE, Black);
+	ssd1306_SetCursor(50, 5);
+
+	ssd1306_UpdateScreen();
+
+
+}
+
+
+
+void oled_clear_tuning_screen(char *guit_string)
+{
+
+	ssd1306_Fill(White);
+	ssd1306_DrawCircle(SCREEN_CENTRE_X, SCREEN_CENTRE_Y, RADIUS, Black);
+	ssd1306_SetCursor(50, 5);
+	ssd1306_WriteString(guit_string, FONT_LARGE, Black);
+	ssd1306_UpdateScreen();
+
+
+
+}
 
 
