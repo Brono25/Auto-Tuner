@@ -40,7 +40,7 @@ void oled_init(void)
 	ssd1306_Init1();
 	ssd1306_Fill(White);
 	ssd1306_DrawCircle(SCREEN_CENTRE_X, SCREEN_CENTRE_Y, RADIUS, Black);
-	/*
+
 	char home_screen[11] = "Auto-Tuner";
 	for(int x = WIDTH; x > MID_X_POS_MED; x--)
 	{
@@ -49,8 +49,8 @@ void oled_init(void)
 		ssd1306_UpdateScreen();
 	}
 
-	HAL_Delay(1000);
- 	 */
+	HAL_Delay(3000);
+
 	ssd1306_Fill(White);
 	ssd1306_DrawCircle(SCREEN_CENTRE_X, SCREEN_CENTRE_Y, RADIUS, Black);
 	ssd1306_UpdateScreen();
