@@ -1,7 +1,8 @@
-# STM32L4 Based Automatic Guitar Tuner
+# STM32L431CBT6 Based Automatic Guitar Tuner
+
+The Auto-Tuner is a handheld device for automatically tuning guitar strings one at a time. The working prototype is featured in the image below. The device has two main modes of operation: tuning mode and feature mode. For details see the 3117_Final_Reoport.pdf.
+
+![Screen Shot 2022-10-19 at 4 36 07 pm](https://user-images.githubusercontent.com/93962685/196605800-077371c7-c3b3-4ca7-9794-8175352008ab.png)
 
 
 
-![final drawio](https://user-images.githubusercontent.com/93962685/196605109-4ab7511b-371a-4f38-aa2c-62fad7738f36.png)
-
-![IMG_8DE40B9B6B06-1](https://user-images.githubusercontent.com/93962685/196605145-f793d5f3-de95-4248-92d4-a26e3dd27d19.jpeg)
