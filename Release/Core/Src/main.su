@@ -1,7 +1,0 @@
-main.c:139:6:print_output	32	static
-main.c:159:6:HAL_ADC_ConvHalfCpltCallback	0	static
-main.c:167:6:HAL_ADC_ConvCpltCallback	0	static
-main.c:178:6:process_dsp	0	static
-main.c:293:6:SystemClock_Config	104	static,ignoring_inline_asm
-main.c:216:5:main	72	static,ignoring_inline_asm
-main.c:523:6:Error_Handler	0	static,ignoring_inline_asm
