@@ -1,26 +1,5 @@
-/* USER CODE BEGIN Header */
-/**
- ******************************************************************************
- * @file           : main.c
- * @brief          : Main program body
- ******************************************************************************
- * @attention
- *
- * Copyright (c) 2022 STMicroelectronics.
- * All rights reserved.
- *
- * This software is licensed under terms that can be found in the LICENSE file
- * in the root directory of this software component.
- * If no LICENSE file comes with this software, it is provided AS-IS.
- *
- ******************************************************************************
- */
-/* USER CODE END Header */
-/* Includes ------------------------------------------------------------------*/
-#include "main.h"
 
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
+#include "main.h"
 #include "arm_math.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,19 +9,6 @@
 #include "ssd1306.h"
 #include <math.h>
 
-/* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
-
-
-
 // ARM IIR Filter Settings
 #define NUM_IIR_STAGES 1
 // ADC Defines
@@ -50,7 +16,6 @@
 #define BLOCK_SIZE 1024
 #define FS 40000
 #define THRESHOLD 600
-
 #define NUM_STRINGS 6
 
 #define E2 82.41
@@ -66,32 +31,20 @@
 #define G3_STRING_NUM 3
 #define B3_STRING_NUM 4
 #define E4_STRING_NUM 5
-
 #define U_FREQ_ERROR 20
 #define L_FREQ_ERROR 20
-
-
 #define TABLE_SIZE   5  //must be odd
 #define TABLE_CENTRE TABLE_SIZE / 2
 #define MIN_CORRECT 3
 
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
-
 DAC_HandleTypeDef hdac1;
 DMA_HandleTypeDef hdma_dac_ch1;
-
 I2C_HandleTypeDef hi2c1;
 I2C_HandleTypeDef hi2c2;
-
 OPAMP_HandleTypeDef hopamp1;
 
 TIM_HandleTypeDef htim1;
@@ -100,40 +53,28 @@ TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim7;
 TIM_HandleTypeDef htim16;
 
-/* USER CODE BEGIN PV */
+
 
 int motor_wait = 0;
 int callback_state = 0;
 int Screenmode = 0;
 int string_tracking = E2_STRING_NUM;
 float32_t curr_target_string[NUM_STRINGS];
-
 int mode = 0;
-
 int correct_pitch_counter = 0;
-
-
-//Current state
-void (*state)();
-
+void (*state)(); // Current state
 
 // Pitch
 float32_t pitch_table[TABLE_SIZE] = {0};
 float32_t *table_pos_ptr = &pitch_table[0];
-
-
-
-
 
 // ADC Variables
 float32_t guitar_signal[BLOCK_SIZE];
 uint16_t  adc_buff[2 * BLOCK_SIZE];
 uint16_t *in_ptr;
 
-
 // RawData_Def myAccelRaw, myGyroRaw;
 ScaledData_Def myAccelScaled, myGyroScaled;
-
 int screenflip = 0;
 
 // ARM IIR Filter Variables
@@ -149,9 +90,6 @@ static float iir_taps[5] = {
 
 
 char * guitar_strings[] = { "E2", "A2", "D3", "G3", "B3", "E4" };
-
-
-/* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
@@ -178,19 +116,8 @@ void state_tune_up_fast();
 void state_get_pitch();
 void state_tune();
 
-/* USER CODE END PFP */
-
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
-
-
-
-
-
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef*htim)
 {
-
-
 	if(htim->Instance == TIM16)
 	{
 
@@ -213,9 +140,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef*htim)
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
 	}
 }
-
-
-/*  HAL_TIM_SET_PRESCALER(&htim2,newValue); */
 
 void init_tunings()
 {
@@ -367,7 +291,6 @@ void iterate_table_pos()
 
 float32_t  get_min_table()
 {
-
 	float32_t min = pitch_table[0];
 	for (int i = 0; i < TABLE_SIZE; i++)
 	{
@@ -376,8 +299,6 @@ float32_t  get_min_table()
 			min = pitch_table[i];
 		}
 	}
-	//qsort(pitch_table, TABLE_SIZE, sizeof(float32_t), cmpfunc);
-	//float32_t median_error = tmp[TABLE_CENTRE];
 	return min;
 }
 
@@ -406,7 +327,6 @@ int init_table(int PITCH_U, int PITCH_L, float32_t target_freq)
 
 void state_string_pitch(int UPP_LIM, int LOW_LIM, float32_t target_freq)
 {
-
 	if (correct_pitch_counter ==  MIN_CORRECT)
 	{
 		oled_clear_screen();
@@ -515,25 +435,10 @@ void state_get_pitch()
 	{
 		string_tracking =  E2_STRING_NUM;
 	}
-
-
-
-
-
-
-
-
-
-
 }
-
-
-
-
 
 void metronome(void)
 {
-
 	HAL_TIM_Base_Start_IT(&htim2);
 
 	int bpm = 100;
@@ -550,31 +455,22 @@ void metronome(void)
 			HAL_TIM_Base_Stop_IT(&htim2);
 			return;
 		}
-
 		if (HAL_GPIO_ReadPin(Button2_GPIO_Port, Button2_Pin))
 		{
 			bpm++;
 			oled_timing_screen(bpm);
 			ssd1306_UpdateScreen();
-
 		}
 		if (HAL_GPIO_ReadPin(Button3_GPIO_Port, Button3_Pin))
 		{
 			bpm--;
 			oled_timing_screen(bpm);
 			ssd1306_UpdateScreen();
-
 		}
-
 		int pre_scalar = 10000 * 60 / bpm;
 		__HAL_TIM_SET_PRESCALER(&htim2, pre_scalar);
-
 	}
-
 }
-
-
-
 
 void get_sineval(uint32_t *sineval)
 {
@@ -586,7 +482,6 @@ void get_sineval(uint32_t *sineval)
 
 void tone_gen(void)
 {
-
 	oled_tone_screen(100);
 	HAL_TIM_Base_Start(&htim7);
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
@@ -608,7 +503,6 @@ void tone_gen(void)
 			HAL_TIM_Base_Stop(&htim7);
 			return;
 		}
-
 		if (HAL_GPIO_ReadPin(Button2_GPIO_Port, Button2_Pin))
 		{
 
@@ -616,54 +510,21 @@ void tone_gen(void)
 		if (HAL_GPIO_ReadPin(Button3_GPIO_Port, Button3_Pin))
 		{
 
-
 		}
 
 		get_sineval(&sineval[0]);
 
-
-
 	}
-
-
-
 }
 
 
-
-
-
-/* USER CODE END 0 */
-
-/**
-  * @brief  The application entry point.
-  * @retval int
-  */
 int main(void)
 {
-  /* USER CODE BEGIN 1 */
-
 	MPU_ConfigTypeDef myMpuConfig;
 
-  /* USER CODE END 1 */
-
-  /* MCU Configuration--------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
-  /* Configure the system clock */
   SystemClock_Config();
 
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
-
-  /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_TIM6_Init();
@@ -676,7 +537,7 @@ int main(void)
   MX_TIM16_Init();
   MX_TIM2_Init();
   MX_TIM7_Init();
-  /* USER CODE BEGIN 2 */
+
 	HAL_TIM_Base_Start(&htim6);
 	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
 
@@ -687,58 +548,38 @@ int main(void)
 	HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buff, 2 * BLOCK_SIZE);
 	arm_biquad_cascade_df1_init_f32(&iir_settings, NUM_IIR_STAGES, &iir_taps[0], &iir_state[0]);
 
-
 	oled_init();
 	init_tunings();
 
 	MPU6050_Init(&hi2c1);
 	myMpuConfig.Accel_Full_Scale = AFS_SEL_2g;
-    myMpuConfig.CONFIG_DLPF = Internal_8MHz;
-    myMpuConfig.ClockSource = DLPF_184A_188G_Hz;
-    myMpuConfig.Gyro_Full_Scale = FS_SEL_500;
-    myMpuConfig.Sleep_Mode_Bit = 0;
-    MPU6050_Config(&myMpuConfig);
+  myMpuConfig.CONFIG_DLPF = Internal_8MHz;
+  myMpuConfig.ClockSource = DLPF_184A_188G_Hz;
+  myMpuConfig.Gyro_Full_Scale = FS_SEL_500;
+  myMpuConfig.Sleep_Mode_Bit = 0;
+  MPU6050_Config(&myMpuConfig);
 
 	HAL_TIM_Base_Start_IT(&htim16);
 
-
-
 	state = state_get_pitch;
-
-
 
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);
 
-
-
 	int counter = 0;
-
-
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-	/*-------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 	while (1)
 	{
 		if (mode == 0)
 		{
-
-
-
-
 			int Button1_val = HAL_GPIO_ReadPin(Button1_GPIO_Port, Button1_Pin);
 			int Button2_val = HAL_GPIO_ReadPin(Button2_GPIO_Port, Button2_Pin);
 			int Button3_val = HAL_GPIO_ReadPin(Button3_GPIO_Port, Button3_Pin);
 
 			if (Button2_val == 1 || Button3_val == 1)
 			{
-
 				if (counter == 0 )
 				{
-
 					oled_selection_screen();
 					ssd1306_DrawRectangle(0, 36, 128,  58, 0);
 					ssd1306_UpdateScreen();
@@ -770,8 +611,6 @@ int main(void)
 					metronome();
 					oled_selection_screen();
 					HAL_Delay(200);
-
-
 				}
 			}
 
@@ -780,20 +619,8 @@ int main(void)
 		{
 			//oled_timing_screen(100);
 			state();
-
 		}
-
-
-
-
-
-
-
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
 	}
-  /* USER CODE END 3 */
 }
 
 /**
