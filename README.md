@@ -1,5 +1,9 @@
-<h1 style="text-align:center; margin-bottom: 0px;">Auto-Tuner</h1>
-<h2 style="text-align:center; margin-top: 0px;">An STM32 Based Automatic Guitar Tuner</h2>
+<p align="center">
+  <strong><span style="font-size: 32px;">Auto-Tuner</span></strong>  
+</p>
+<p align="center">
+  <span style="font-size: 20px;">An STM32-Based Automatic Guitar Tuner</span>
+</p>
 
 
 
