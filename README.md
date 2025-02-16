@@ -32,15 +32,18 @@ For this project, [McLeod’s Pitch Method](https://www.cs.otago.ac.nz/graphics/
 
 The frequency detection phase relies on the square difference function shown below. Expanding this function reveals that it consists of an autocorrelation component and a sum of squares:
 
+```math
 \[
 d(\tau) = \sum_{j=t}^{t+W-\tau} (x_j - x_{j+\tau})^2 = \sum_{j=t}^{t+W-\tau} x_j^2 + x_{j+\tau}^2 - 2x_j x_{j+\tau}
 \]
+```
 
 Dividing by the sum of squares results in the normalized square difference function (NSDF):
-
+```math
 \[
 n(\tau) = \frac{\sum_{j=t}^{t+W-\tau} 2x_j x_{j+\tau}}{\sum_{j=t}^{t+W-\tau} x_j^2 + x_{j+\tau}^2}
 \]
+```
 
 The NSDF output is similar to an autocorrelation function, except its values are constrained within the range [-1,1]. The largest peak in the NSDF corresponds to a lag \(\tau\) where the detected frequency is given by the sample rate divided by \(\tau\). The benefit of normalization is that it allows for an easily defined threshold to detect this peak. Based on experimentation, selecting the first major peak that exceeds a threshold of 0.9 produced the most reliable results.
 
