@@ -1,8 +1,8 @@
 <p align="center">
-  <strong><span style="font-size: 64px;">Auto-Tuner</span></strong>  
+  <strong><font size="+3">Auto-Tuner</font></strong>
 </p>
 <p align="center">
-  <span style="font-size: 32px;">An STM32-Based Automatic Guitar Tuner</span>
+  <font size="+1">An STM32-Based Automatic Guitar Tuner</font>
 </p>
 
 
