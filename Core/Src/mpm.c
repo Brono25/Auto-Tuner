@@ -19,7 +19,10 @@ void mpm_mcleod_pitch_method_f32(float32_t *pData, float32_t *pitch_estimate)
 	mpm_find_peak_f32(p_ncorr, &tau);
 
 	if (tau > BLOCK_SIZE - 2)
+	{
 		tau = BLOCK_SIZE - 2;
+	}
+		
 
 	uint16_t xp = tau;
 	float32_t a = p_ncorr[tau - 1];
@@ -30,6 +33,36 @@ void mpm_mcleod_pitch_method_f32(float32_t *pData, float32_t *pitch_estimate)
 	mpm_parabolic_interpolation_f32(xp, a, b, c, &delta_tau);
 
 	*pitch_estimate = FS / delta_tau;
+}
+
+void mpm_NSDF_f32(float32_t *pSrc, float32_t **pDst)
+{
+	float32_t *xcorr = &mpm_reserved_memory[1];
+	arm_correlate_f32(&pSrc[0], BLOCK_SIZE, &pSrc[0], BLOCK_SIZE, xcorr);
+
+	float32_t *r = &xcorr[BLOCK_SIZE - 1];
+	*pDst = r;
+
+	float32_t *xs = &mpm_reserved_memory[0];
+	float32_t *p_xs1 = &xs[0];
+	float32_t *p_xs2 = &xs[BLOCK_SIZE - 1];
+	float32_t xs1, xs2;
+
+	arm_mult_f32(&pSrc[0], &pSrc[0], &xs[0], BLOCK_SIZE);
+	mpm_sum_f32(&xs[0], BLOCK_SIZE, &xs1);
+	xs2 = xs1;
+
+	for (uint16_t tau = 0; tau < BLOCK_SIZE; tau++)
+	{
+		*r = 2 * (*r) / (xs1 + xs2);
+
+		xs1 = xs1 - (*p_xs1);
+		xs2 = xs2 - (*p_xs2);
+
+		r++;
+		p_xs1++;
+		p_xs2--;
+	}
 }
 
 void mpm_sum_f32(float32_t *pSrc, uint16_t scrLen, float32_t *pRes)
@@ -51,8 +84,9 @@ void mpm_find_peak_f32(float32_t *pSrc, uint16_t *tau)
 	for (uint16_t i = 0; i < BLOCK_SIZE; i++)
     {
        if (flag == FIRST_CROSSING_NOT_PASSED && *pSrc < 0)
-           flag = FIRST_CROSSING_PASSED;
-       
+	   {
+		   flag = FIRST_CROSSING_PASSED;
+	   }
        if (flag == FIRST_CROSSING_PASSED)
        {
        		if (*pSrc > peak_value && *pSrc > PEAK_THRESHOLD)
@@ -68,35 +102,7 @@ void mpm_find_peak_f32(float32_t *pSrc, uint16_t *tau)
     }
 }
 
-void mpm_NSDF_f32(float32_t *pSrc, float32_t **pDst)
-{
-	float32_t *xcorr = &mpm_reserved_memory[1];
-	arm_correlate_f32(&pSrc[0], BLOCK_SIZE , &pSrc[0], BLOCK_SIZE, xcorr);
 
-	float32_t *r = &xcorr[BLOCK_SIZE - 1];
-	*pDst = r;
-
-	float32_t *xs = &mpm_reserved_memory[0];
-	float32_t *p_xs1 = &xs[0];
-	float32_t *p_xs2 = &xs[BLOCK_SIZE - 1];
-	float32_t xs1, xs2;
-
-	arm_mult_f32(&pSrc[0], &pSrc[0],  &xs[0], BLOCK_SIZE);
-	mpm_sum_f32(&xs[0], BLOCK_SIZE, &xs1);
-	xs2 = xs1;
-
-	for (uint16_t tau = 0; tau < BLOCK_SIZE  ; tau++)
-	{
-		*r = 2 * (*r) / (xs1 + xs2);
-
-		xs1 = xs1 - (*p_xs1);
-		xs2 = xs2 - (*p_xs2);
-
-		r++;
-		p_xs1++;
-		p_xs2--;
-	}
-}
 
 void mpm_parabolic_interpolation_f32(uint16_t x_pos, float32_t a, float32_t b, float32_t c, float32_t *delta_tau)
 {

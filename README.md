@@ -26,6 +26,26 @@ First, a piezo transducer detects string vibrations through the contact the Auto
 
 
 ### Pitch Detection
+The naïve approach to pitch detection for a musical instrument is to take the Fourier transform of the string vibration and identify the bin with the highest peak. Unfortunately, stringed instruments have a peculiar characteristic where the fundamental frequency of a pitch may not have the largest peak—or may not even be present at all. One way to overcome this issue is to use an autocorrelation-based algorithm, which can determine the fundamental frequency of a signal even when it is missing. 
 
+For this project, [McLeod’s Pitch Method](https://www.cs.otago.ac.nz/graphics/Geoff/tartini/papers/A_Smarter_Way_to_Find_Pitch.pdf) (MPM) was implemented for pitch detection. MPM operates in three main phases: frequency detection, peak picking, and parabolic interpolation.
+
+The frequency detection phase relies on the square difference function shown below. Expanding this function reveals that it consists of an autocorrelation component and a sum of squares:
+
+\[
+d(\tau) = \sum_{j=t}^{t+W-\tau} (x_j - x_{j+\tau})^2 = \sum_{j=t}^{t+W-\tau} x_j^2 + x_{j+\tau}^2 - 2x_j x_{j+\tau}
+\]
+
+Dividing by the sum of squares results in the normalized square difference function (NSDF):
+
+\[
+n(\tau) = \frac{\sum_{j=t}^{t+W-\tau} 2x_j x_{j+\tau}}{\sum_{j=t}^{t+W-\tau} x_j^2 + x_{j+\tau}^2}
+\]
+
+The NSDF output is similar to an autocorrelation function, except its values are constrained within the range [-1,1]. The largest peak in the NSDF corresponds to a lag \(\tau\) where the detected frequency is given by the sample rate divided by \(\tau\). The benefit of normalization is that it allows for an easily defined threshold to detect this peak. Based on experimentation, selecting the first major peak that exceeds a threshold of 0.9 produced the most reliable results.
+
+However, pitch detection accuracy is limited by the discrete nature of lag values. To refine the estimate, parabolic interpolation is applied to approximate the peak’s true position between lag values. Once the peak's lag is identified, its value and those of its nearest neighbors are used to fit a parabola. The peak of this parabola provides a more precise estimate of the actual pitch.
+
+#### Implementation
 
 ### State Machine
