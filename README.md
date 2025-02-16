@@ -45,11 +45,12 @@ The NSDF output is similar to an autocorrelation function, except its values are
 
 However, pitch detection accuracy is limited by the discrete nature of lag values. To refine the estimate, parabolic interpolation is applied to approximate the peak’s true position between lag values. Once the peak's lag is identified, its value and those of its nearest neighbors are used to fit a parabola. The peak of this parabola provides a more precise estimate of the actual pitch.
 
-#### Implementation
-
 ### State Machine
-A finite state machine is used for the control system. The state machine, shown below,
-calculates the error of the current string pitch to the desired pitch. The state machine will decide the direction and speed of the motor based on the size and polarity of the error. Once the pitch error fits within ±5 cents of the desired pitch for 5 samples in a row, the next string pitch is loaded into the state machine and the process starts again.
+Initially, a PID controller was considered for tuning motor control. However, this approach required the motor and piezo transducer to operate simultaneously. The problem was that motor vibrations heavily impacted the frequency spectrum, making pitch detection unreliable.
+
+To address this, a state machine was implemented to alternate between pitch detection and motor control. As shown below, the state machine calculates the error between the current and target pitch, then adjusts the motor’s direction and speed based on the magnitude and polarity of the error. After each motor activation, the pitch error is recalculated, and the process repeats. Larger pitch errors result in greater motor adjustments.
+
+Once the pitch error stays within ±5 cents of the target for five consecutive samples, the system moves to the next string and repeats the process.
 
 
 <div align="center">
