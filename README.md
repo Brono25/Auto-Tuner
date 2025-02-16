@@ -7,11 +7,11 @@
 The Auto-Tuner is a handheld device for automatically tuning guitar strings one at a time. The working prototype is featured in the image below. The device has two main modes of operation: tuning mode and feature mode. For details see the 3117_Final_Reoport.pdf.
 
 
-<div style="text-align:center;">
-    <iframe width="560" height="315" src="https://www.youtube.com/embed/4Ss6xfbAHeE" 
-    title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; 
-    clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-</div>
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=4Ss6xfbAHeE">
+    <img src="https://img.youtube.com/vi/4Ss6xfbAHeE/0.jpg" alt="Watch on YouTube">
+  </a>
+</p>
 
 
 See it in action: https://www.youtube.com/watch?v=4Ss6xfbAHeE 
