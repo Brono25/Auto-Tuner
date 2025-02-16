@@ -41,10 +41,17 @@ Dividing by the sum of squares results in the normalized square difference funct
 n(\tau) = \frac{\sum_{j=t}^{t+W-\tau} 2x_j x_{j+\tau}}{\sum_{j=t}^{t+W-\tau} x_j^2 + x_{j+\tau}^2}
 ```
 
-The NSDF output is similar to an autocorrelation function, except its values are constrained within the range [-1,1]. The largest peak in the NSDF corresponds to a lag \(\tau\) where the detected frequency is given by the sample rate divided by \(\tau\). The benefit of normalization is that it allows for an easily defined threshold to detect this peak. Based on experimentation, selecting the first major peak that exceeds a threshold of 0.9 produced the most reliable results.
+The NSDF output is similar to an autocorrelation function, except its values are constrained within the range [-1,1]. The largest peak in the NSDF corresponds to a lag τ where the detected frequency is given by the sample rate divided by τ. The benefit of normalization is that it allows for an easily defined threshold to detect this peak. Based on experimentation, selecting the first major peak that exceeds a threshold of 0.9 produced the most reliable results.
 
 However, pitch detection accuracy is limited by the discrete nature of lag values. To refine the estimate, parabolic interpolation is applied to approximate the peak’s true position between lag values. Once the peak's lag is identified, its value and those of its nearest neighbors are used to fit a parabola. The peak of this parabola provides a more precise estimate of the actual pitch.
 
 #### Implementation
 
 ### State Machine
+A finite state machine is used for the control system. The state machine, shown below,
+calculates the error of the current string pitch to the desired pitch. The state machine will decide the direction and speed of the motor based on the size and polarity of the error. Once the pitch error fits within ±5 cents of the desired pitch for 5 samples in a row, the next string pitch is loaded into the state machine and the process starts again.
+
+
+<div align="center">
+  <img src="assets/state_machine.png" alt="Block Design" width="500">
+</div>
