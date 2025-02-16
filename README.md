@@ -56,3 +56,8 @@ Once the pitch error stays within ±5 cents of the target for five consecutive s
 <div align="center">
   <img src="assets/state_machine.png" alt="Block Design" width="500">
 </div>
+
+## Results
+The accuracy of the Auto-Tuner was evaluated using a high-precision guitar tuner. The target was to achieve a tuning error within 6 cents, as this is near the threshold of human pitch perception.
+
+Testing showed that most strings had a tuning error of 2-3 cents, while the G3 string exhibited a slightly higher error of around 6 cents. Despite this, the Auto-Tuner successfully met the desired accuracy specifications.
